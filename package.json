@@ -1,7 +1,7 @@
 {
   "name": "zero-bridge-desktop",
   "version": "0.1.0-alpha",
-  "description": "Desktop shell for zero-bridge. Starts the Go bridge as a sidecar, loads the web UI, owns tray, notifications, and window state.",
+  "description": "Desktop shell for zero-bridge: Electron sidecar, tray, notifications. Bridge core stays in zero-bridge (Go, stdlib).",
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -9,9 +9,9 @@
   "scripts": {
     "build": "tsc",
     "test": "node --test --import tsx/esm tests/*.test.ts",
-    "smoke": "node scripts/smoke.mjs",
     "lint": "tsc --noEmit",
-    "audit": "npm audit --package-lock-only --audit-level=moderate"
+    "audit": "npm audit --package-lock-only --audit-level=moderate",
+    "check": "npm run lint && npm run audit && npm test"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -21,5 +21,6 @@
   },
   "engines": {
     "node": ">=22.0.0"
-  }
+  },
+  "dependencies": {}
 }

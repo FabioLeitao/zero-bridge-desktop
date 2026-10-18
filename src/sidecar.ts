@@ -1,8 +1,9 @@
-import { ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { ChildProcessByStdio, spawn } from "node:child_process";
 import { promises as fs, constants as fsConst } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
+import { createServer } from "node:net";
 import { SidecarState } from "./types.js";
 
 export interface SidecarOptions {
@@ -16,7 +17,7 @@ export interface SidecarOptions {
 }
 
 export interface SidecarHandle {
-  proc: ChildProcessWithoutNullStreams | null;
+  proc: import("node:child_process").ChildProcessByStdio<null, any, any> | null;
   pid: number | null;
   tokenPath: string;
   token: string;
@@ -29,11 +30,25 @@ export interface SidecarHandle {
 export class SidecarController {
   private handle: SidecarHandle | null = null;
 
+  private async findFreePort(): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const server = createServer();
+      server.listen(0, '127.0.0.1', () => {
+        const port = (server.address() as any).port;
+        server.close(() => resolve(port));
+      });
+      server.on('error', reject);
+    });
+  }
+
   async launch(opts: SidecarOptions): Promise<SidecarHandle> {
     const bridgeBin = resolve(opts.bridgeBin);
     const agentBin = resolve(opts.agentBin);
     await mustExistAndExecutable(bridgeBin);
     await mustExistAndExecutable(agentBin);
+
+    // Resolve ephemeral port if 0
+    const port = opts.port === 0 ? await this.findFreePort() : opts.port;
 
     const dir = join(opts.tokenDir, randomUUID());
     await fs.mkdir(dir, { recursive: true, mode: 0o700 });
@@ -45,7 +60,7 @@ export class SidecarController {
 
     const args = [
       "--listen",
-      `127.0.0.1:${opts.port}`,
+      `127.0.0.1:${port}`,
       "--agent-cmd",
       agentBin,
       "--agent-arg",
@@ -72,7 +87,7 @@ export class SidecarController {
       pid: proc.pid ?? null,
       tokenPath,
       token,
-      port: opts.port,
+      port,
       state: "starting",
       killed: async () => {
         try {

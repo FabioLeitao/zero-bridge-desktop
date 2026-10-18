@@ -31,7 +31,6 @@ if (!app.requestSingleInstanceLock()) {
 
 app.on("ready", () => {
   // Security hard code.
-  app.allowRendererProcessReuse = true;
   app.commandLine.appendSwitch("disable-features", "TranslateUI");
 
   mainWindow = new BrowserWindow({
@@ -97,18 +96,20 @@ app.on("ready", () => {
 
 ipcMain.handle(IPC_CHANNELS.LAUNCH, async (_evt, opts: any) => {
   try {
-    const bridgeBin = String(opts.bridgeBin || "");
-    const agentBin = String(opts.agentBin || "");
+    // E2E test mode: read from env if opts not provided
+    const bridgeBin = String(opts.bridgeBin || process.env.ZB_E2E_BRIDGE_BIN || "");
+    const agentBin = String(opts.agentBin || process.env.ZB_E2E_AGENT_BIN || "");
     if (!bridgeBin || !agentBin) {
       return { ok: false, state: "stopped", error: "missing bin paths" };
     }
 
-    const port = Number(opts.port) || 8765;
+    const port = Number(opts.port || process.env.ZB_E2E_PORT || "0") || 8765;
+    const tokenDir = String(opts.tokenDir || process.env.ZB_E2E_TOKEN_FILE || "");
     const handle = await controller.launch({
       bridgeBin,
       agentBin,
       port,
-      tokenDir: String(opts.tokenDir || ""),
+      tokenDir: tokenDir ? tokenDir.replace(/token\.txt$/, "") : "",
       workspaceRoot: opts.workspaceRoot ? String(opts.workspaceRoot) : undefined,
     });
 
@@ -137,7 +138,7 @@ ipcMain.on("zb:permission-request", (_evt, notice: PermissionNotice) => {
 // Open folder picker for new session.
 ipcMain.handle("zb:pick-workspace", async () => {
   if (!mainWindow) return null;
-  return folderPicker.pick(mainWindow);
+  return folderPicker.pick(mainWindow, dialog);
 });
 
 ipcMain.on(IPC_CHANNELS.QUIT, async () => {

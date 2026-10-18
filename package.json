@@ -9,18 +9,78 @@
   "scripts": {
     "build": "tsc",
     "test": "node --test --import tsx/esm tests/*.test.ts",
+    "test:e2e": "playwright test tests/e2e/*.spec.ts",
     "lint": "tsc --noEmit",
     "audit": "npm audit --package-lock-only --audit-level=moderate",
-    "check": "npm run lint && npm run audit && npm test"
+    "check": "npm run lint && npm run audit && npm test",
+    "dist": "electron-builder --linux",
+    "dist:dir": "electron-builder --linux dir",
+    "postinstall": "node -e \"require('electron-builder').installAppDependencies({arch: process.arch, platform: 'linux'})\""
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/node": "^22.0.0",
     "electron": "^33.0.0",
+    "electron-builder": "^24.13.0",
+    "playwright": "^1.48.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   },
   "engines": {
     "node": ">=22.0.0"
   },
-  "dependencies": {}
+  "build": {
+    "appId": "com.zerobridge.desktop",
+    "productName": "zero-bridge",
+    "copyright": "Copyright © 2026 Fabio Tavares Leitão",
+    "directories": {
+      "output": "dist/packages",
+      "buildResources": "assets"
+    },
+    "files": [
+      "dist/**/*",
+      "src/preload.js",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development",
+      "maintainer": "Fabio Tavares Leitão <fabio.tleitao@gmail.com>",
+      "synopsis": "Local HTTP/SSE bridge and web UI for zero acp",
+      "description": "Desktop shell for zero-bridge: Electron sidecar, tray, notifications."
+    },
+    "appImage": {
+      "toolType": "appimagetool"
+    },
+    "deb": {
+      "depends": [
+        "libgtk-3-0",
+        "libnotify4",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "libatspi2.0-0",
+        "libuuid1",
+        "libsecret-1-0"
+      ]
+    },
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "generateUpdatesFilesForAllChannels": false,
+    "publish": null
+  }
 }

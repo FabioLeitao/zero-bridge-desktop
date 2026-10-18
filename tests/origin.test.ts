@@ -8,18 +8,24 @@ describe("origin allowlist", () => {
     assert.equal(u.protocol, "http:");
     assert.equal(u.hostname, "127.0.0.1");
     assert.equal(u.port, "8765");
+
+    const v = parseOrigin("https://127.0.0.1:8765/");
+    assert.equal(v.protocol, "https:");
   });
 
   it("rejects non-http", () => {
-    assert.throws(() => parseOrigin("https://example.com"), /unsupported protocol/);
     assert.throws(() => parseOrigin("file://"), /unsupported protocol/);
+    assert.throws(() => parseOrigin("ws://"), /unsupported protocol/);
+    assert.throws(() => parseOrigin("ftp://"), /unsupported protocol/);
   });
 
   it("detects loopback hosts", () => {
     assert.equal(isLoopbackHost("127.0.0.1"), true);
     assert.equal(isLoopbackHost("::1"), true);
     assert.equal(isLoopbackHost("localhost"), true);
-    assert.equal(isLoopbackHost("127.0.0.1:8765"), true); // host part only
+    // host part only, port stripped
+    assert.equal(isLoopbackHost("127.0.0.1:8765"), true);
+    assert.equal(isLoopbackHost("[::1]:8765"), true);
     assert.equal(isLoopbackHost("example.com"), false);
     assert.equal(isLoopbackHost(""), false);
     assert.equal(isLoopbackHost(null), false);

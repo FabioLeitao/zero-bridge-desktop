@@ -5,7 +5,7 @@
   "license": "MIT",
   "private": true,
   "type": "module",
-  "main": "dist/main.js",
+  "main": "dist/src/main.js",
   "scripts": {
     "build": "tsc",
     "test": "node --test --import tsx/esm tests/*.test.ts",
@@ -13,7 +13,7 @@
     "lint": "tsc --noEmit",
     "audit": "npm audit --package-lock-only --audit-level=moderate",
     "check": "npm run lint && npm run audit && npm test",
-    "dist": "electron-builder --linux",
+    "dist": "electron-builder --linux && node scripts/checksums.mjs && node scripts/sbom.mjs",
     "dist:dir": "electron-builder --linux dir",
     "postinstall": "node -e \"require('electron-builder').installAppDependencies({arch: process.arch, platform: 'linux'})\""
   },
@@ -38,8 +38,7 @@
       "buildResources": "assets"
     },
     "files": [
-      "dist/**/*",
-      "src/preload.js",
+      "dist/src/**/*",
       "node_modules/**/*",
       "package.json"
     ],
@@ -63,7 +62,7 @@
       "description": "Desktop shell for zero-bridge: Electron sidecar, tray, notifications."
     },
     "appImage": {
-      "toolType": "appimagetool"
+      "artifactName": "zero-bridge-${version}.${ext}"
     },
     "deb": {
       "depends": [

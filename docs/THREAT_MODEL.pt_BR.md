@@ -92,16 +92,39 @@ O preload lê o texto de `section.perm` e envia `zb:permission-request`. O proce
 
 Não há dependências de produção. `npm audit --omit=dev` está limpo. O lockfile tem um aviso aceito, `GHSA-hp3w-g68c-fv3c` (`sprintf-js@1.1.3`, via `electron-builder`), registrado em [AUDIT_EXCEPTION.pt_BR.md](AUDIT_EXCEPTION.pt_BR.md) com revisão em 2027-01-19. `npm run audit` falha em qualquer outro id. Scripts de instalação ficam desligados, salvo `--allow-scripts`. Não há auto-update. Os alvos Linux são AppImage e deb. macOS e Windows ficam para depois; não são gerados aqui.
 
-## Cobertura (2026-10-19)
+## Cobertura (2026-10-20)
 
-`node --test --experimental-test-coverage --import tsx/esm tests/*.test.ts`
+`node --test --experimental-test-coverage --import tsx/esm tests/*.test.ts` (81 testes). Linha de base do plano: `origin.ts` 100% de linhas, `sidecar.ts` cerca de 97% de linhas e 63% de ramos. `main`, `preload`, `renderer`, `folderPicker`, `notifications`, `tray` e fuses não estavam naquele relatório.
 
-| escopo | linha | ramo | funções |
+| módulo | linha | ramo | funções |
 | --- | ---: | ---: | ---: |
-| arquivos carregados | 96,01% | 85,77% | 87,39% |
-| `src/sidecar.ts` | 100% | 93,06% | 96,30% |
+| arquivos carregados | 97,22% | 87,42% | 88,81% |
+| `ipcGuard.ts` | 97,93% | 81,40% | 100% |
+| `bins.ts` | 100% | 100% | 100% |
+| `shellPolicy.ts` | 93,48% | 85,71% | 83,33% |
+| `workspaceRoots.ts` | 100% | 75,00% | 100% |
+| `sidecar.ts` | 100% | 93,06% | 96,30% |
+| `folderPicker.ts` | 87,01% | 90,91% | 80,00% |
+| `notifications.ts` | 96,77% | 82,35% | 100% |
+| `tray.ts` | 87,23% | 88,89% | 43,75% |
 
-`src/main.ts` e `src/preload.ts` ficam fora dessa medição porque importam o Electron. O e2e carrega a UI real, o cartão de permissão e o log da notificação com a janela oculta. Nesta máquina o binário do Electron não está presente (`ignore-scripts`), então os três testes são pulados. O CI (`.github/workflows/check.yml`) roda `npm ci --allow-scripts` e `npm run test:e2e`. Esse workflow não foi executado a partir deste worktree.
+`src/main.ts`, `src/preload.ts` e `src/renderer.ts` são cola de Electron ou DOM e não entram na medição. `npm audit --omit=dev` em 2026-10-20 reportou 0 vulnerabilidades. `npm run audit` saiu 0 e imprimiu a exceção do sprintf-js (revisão em 2027-01-19).
+
+Mutantes manuais (uma condição invertida, depois `git checkout --` no arquivo) falharam um teste depois de `fa1f406`. Nenhum mutante foi commitado.
+
+## Issues neste branch
+
+| issue | commits | ainda aberto dentro da issue |
+| --- | --- | --- |
+| #3 IPC | `40ee2a1`, `9ac5adc`, `21a8d8e`, `04f931e`, `fa1f406` | um script no frame principal continua sendo esse remetente |
+| #4 token | `2f15118` | |
+| #5 sidecar | `93056c9`, `7722495` | allowlist de ambiente, listen `unix:` |
+| #6 shell | `278de5d`, `fa1f406` | fuses não conferidos num pacote gerado |
+| #7 pasta | `b06c125`, `21a8d8e` | |
+| #8 bandeja | `2f7aa7a` | iniciar com o login |
+| #9 suprimento | `18a7adf` | auto-update assinado |
+| #10 macOS/Windows | nenhum | a issue inteira; só Linux |
+| #11 operação | `40ee2a1`, `fcf394e` (binários fora do renderer) | arquivo de config, logs redatados, textos por locale |
 
 ## Ainda aberto
 

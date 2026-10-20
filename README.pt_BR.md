@@ -18,7 +18,7 @@ Esse `npm ci` não baixa o binário do Electron. O `.npmrc` define `ignore-scrip
 npm ci --allow-scripts
 ```
 
-O shell lê os binários de `ZB_BRIDGE_BIN` e `ZB_AGENT_BIN` (o e2e usa `ZB_E2E_BRIDGE_BIN` e `ZB_E2E_AGENT_BIN`). A página não escolhe o executável. Veja [docs/INSTALL.pt_BR.md](docs/INSTALL.pt_BR.md).
+O shell lê os binários de `ZB_BRIDGE_BIN` e `ZB_AGENT_BIN`. O harness sem pacote também pode definir `ZB_E2E_BRIDGE_BIN` e `ZB_E2E_AGENT_BIN`. Um app empacotado ignora toda variável `ZB_E2E_*`. A página não escolhe o executável. Veja [docs/INSTALL.pt_BR.md](docs/INSTALL.pt_BR.md).
 
 ## Segurança
 
@@ -33,13 +33,40 @@ A exceção de auditoria do `sprintf-js` está em [docs/AUDIT_EXCEPTION.pt_BR.md
 
 ## Testes
 
-`npm test` roda a suíte unitária (72 testes em 2026-10-19). `npm run check` é lint, o gate da exceção de auditoria e essa suíte.
+`npm test` roda a suíte unitária (81 testes em 2026-10-20). `npm run check` é lint, o gate da exceção de auditoria e essa suíte.
 
-Cobertura de `node --test --experimental-test-coverage --import tsx/esm tests/*.test.ts` em 2026-10-19:
+Cobertura de `node --test --experimental-test-coverage --import tsx/esm tests/*.test.ts` em 2026-10-20. Na linha de base do plano, `origin.ts` estava em 100% de linhas e `sidecar.ts` em cerca de 97% de linhas / 63% de ramos. `main`, `preload`, `renderer`, `folderPicker`, `notifications`, `tray` e o arquivo de fuses estavam fora daquele relatório.
 
-| escopo | linha | ramo | funções |
+| módulo | linha | ramo | funções |
 | --- | ---: | ---: | ---: |
-| arquivos carregados | 96,01% | 85,77% | 87,39% |
-| `src/sidecar.ts` | 100% | 93,06% | 96,30% |
+| arquivos carregados | 97,22% | 87,42% | 88,81% |
+| `ipcGuard.ts` | 97,93% | 81,40% | 100% |
+| `bins.ts` | 100% | 100% | 100% |
+| `shellPolicy.ts` | 93,48% | 85,71% | 83,33% |
+| `workspaceRoots.ts` | 100% | 75,00% | 100% |
+| `sidecar.ts` | 100% | 93,06% | 96,30% |
+| `folderPicker.ts` | 87,01% | 90,91% | 80,00% |
+| `notifications.ts` | 96,77% | 82,35% | 100% |
+| `tray.ts` | 87,23% | 88,89% | 43,75% |
+| `origin.ts` | 100% | 86,96% | 83,33% |
+| `electron.fuses.ts` | 100% | 100% | 100% |
 
-`src/main.ts` e `src/preload.ts` importam o Electron, então essa medição não os carrega. O e2e é `npm run test:e2e` depois de `npm ci --allow-scripts`. Sem o binário, os três testes ficam pulados. O CI roda a suíte em `.github/workflows/check.yml`.
+A meta de 85% de linhas vale nesses módulos de lógica. A cobertura de funções de `tray.ts` conta as interfaces injetadas do Electron, que este processo não chama.
+
+Não carregados, porque importam Electron ou o DOM: `src/main.ts`, `src/preload.ts`, `src/renderer.ts`. `npm run dist:dir` não rodou: `node_modules/electron` não tem binário (`ignore-scripts`), e o empacotamento baixaria esse binário.
+
+O e2e é `npm run test:e2e` depois de `npm ci --allow-scripts`. Sem o binário, os três testes ficam pulados. O CI roda a suíte em `.github/workflows/check.yml`.
+
+## Issues
+
+| issue | commits |
+| --- | --- |
+| [#3](https://github.com/FabioLeitao/zero-bridge-desktop/issues/3) IPC | `40ee2a1`, `9ac5adc`, `21a8d8e`, `04f931e`, `fa1f406` |
+| [#4](https://github.com/FabioLeitao/zero-bridge-desktop/issues/4) token | `2f15118` |
+| [#5](https://github.com/FabioLeitao/zero-bridge-desktop/issues/5) sidecar | `93056c9`, `7722495`. Allowlist de ambiente e listen `unix:` seguem abertos |
+| [#6](https://github.com/FabioLeitao/zero-bridge-desktop/issues/6) shell | `278de5d`, `fa1f406`. Os fuses estão travados no `package.json`; o diretório empacotado não foi gerado aqui |
+| [#7](https://github.com/FabioLeitao/zero-bridge-desktop/issues/7) pasta | `b06c125`, `21a8d8e` |
+| [#8](https://github.com/FabioLeitao/zero-bridge-desktop/issues/8) bandeja | `2f7aa7a`. Iniciar com o login segue sem implementação |
+| [#9](https://github.com/FabioLeitao/zero-bridge-desktop/issues/9) suprimento | `18a7adf`. Auto-update assinado não existe |
+| [#10](https://github.com/FabioLeitao/zero-bridge-desktop/issues/10) macOS/Windows | sem commit; só Linux |
+| [#11](https://github.com/FabioLeitao/zero-bridge-desktop/issues/11) operação | os binários não vêm mais do renderer (`40ee2a1`, `fcf394e`). Arquivo de config, logs redatados e textos por locale seguem abertos |

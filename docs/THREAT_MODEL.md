@@ -92,16 +92,39 @@ The preload reads `section.perm` text and sends `zb:permission-request`. Main st
 
 No production dependencies. `npm audit --omit=dev` is clean. The lockfile has one accepted advisory, `GHSA-hp3w-g68c-fv3c` (`sprintf-js@1.1.3`, via `electron-builder`), recorded in [AUDIT_EXCEPTION.md](AUDIT_EXCEPTION.md) with review date 2027-01-19. `npm run audit` fails on any other id. Install scripts stay off unless the operator passes `--allow-scripts`. There is no auto-update. Linux targets are AppImage and deb. macOS and Windows are listed as later work, not built here.
 
-## Coverage (2026-10-19)
+## Coverage (2026-10-20)
 
-`node --test --experimental-test-coverage --import tsx/esm tests/*.test.ts`
+`node --test --experimental-test-coverage --import tsx/esm tests/*.test.ts` (81 tests). Plan baseline: `origin.ts` 100% lines, `sidecar.ts` about 97% lines and 63% branches. `main`, `preload`, `renderer`, `folderPicker`, `notifications`, `tray`, and fuses were not in that report.
 
-| scope | line | branch | functions |
+| module | line | branch | functions |
 | --- | ---: | ---: | ---: |
-| loaded files | 96.01% | 85.77% | 87.39% |
-| `src/sidecar.ts` | 100% | 93.06% | 96.30% |
+| loaded files | 97.22% | 87.42% | 88.81% |
+| `ipcGuard.ts` | 97.93% | 81.40% | 100% |
+| `bins.ts` | 100% | 100% | 100% |
+| `shellPolicy.ts` | 93.48% | 85.71% | 83.33% |
+| `workspaceRoots.ts` | 100% | 75.00% | 100% |
+| `sidecar.ts` | 100% | 93.06% | 96.30% |
+| `folderPicker.ts` | 87.01% | 90.91% | 80.00% |
+| `notifications.ts` | 96.77% | 82.35% | 100% |
+| `tray.ts` | 87.23% | 88.89% | 43.75% |
 
-`src/main.ts` and `src/preload.ts` are outside that run because they import Electron. The e2e file loads the real UI, permission card, and hidden-window note log. On this machine the Electron binary is absent (`ignore-scripts`), so those three tests skip. CI (`.github/workflows/check.yml`) runs `npm ci --allow-scripts` and `npm run test:e2e`. That workflow has not been executed from this worktree.
+`src/main.ts`, `src/preload.ts`, and `src/renderer.ts` are Electron or DOM glue and are not loaded. `npm audit --omit=dev` on 2026-10-20 reported 0 vulnerabilities. `npm run audit` exited 0 and printed the sprintf-js exception (review 2027-01-19).
+
+Manual mutants (one inverted condition, then `git checkout --` the file) all failed a test after `fa1f406`. No mutant was committed.
+
+## Issues on this branch
+
+| issue | commits | left open inside the issue |
+| --- | --- | --- |
+| #3 IPC | `40ee2a1`, `9ac5adc`, `21a8d8e`, `04f931e`, `fa1f406` | a script in the main frame is still that sender |
+| #4 token | `2f15118` | |
+| #5 sidecar | `93056c9`, `7722495` | env allowlist, `unix:` listen |
+| #6 shell | `278de5d`, `fa1f406` | fuses not checked on a built package |
+| #7 workspace | `b06c125`, `21a8d8e` | |
+| #8 tray | `2f7aa7a` | start at login |
+| #9 supply | `18a7adf` | signed auto-update |
+| #10 macOS/Windows | none | the whole issue; Linux only |
+| #11 ops | `40ee2a1`, `fcf394e` (bins not from the renderer) | config file, redacted logs, locale strings |
 
 ## Still open
 

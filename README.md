@@ -18,7 +18,7 @@ The Electron binary is not downloaded by that `npm ci`. `.npmrc` sets `ignore-sc
 npm ci --allow-scripts
 ```
 
-The shell reads the binaries from `ZB_BRIDGE_BIN` and `ZB_AGENT_BIN` (the e2e harness uses `ZB_E2E_BRIDGE_BIN` and `ZB_E2E_AGENT_BIN`). The page cannot choose them. See [docs/INSTALL.md](docs/INSTALL.md).
+The shell reads the binaries from `ZB_BRIDGE_BIN` and `ZB_AGENT_BIN`. The unpackaged harness may also set `ZB_E2E_BRIDGE_BIN` and `ZB_E2E_AGENT_BIN`. A packaged app ignores every `ZB_E2E_*` variable. The page cannot choose a binary. See [docs/INSTALL.md](docs/INSTALL.md).
 
 ## Security
 
@@ -33,13 +33,40 @@ The lockfile audit exception for `sprintf-js` is [docs/AUDIT_EXCEPTION.md](docs/
 
 ## Tests
 
-`npm test` runs the unit suite (72 tests on 2026-10-19). `npm run check` is lint, the audit exception gate, and that suite.
+`npm test` runs the unit suite (81 tests on 2026-10-20). `npm run check` is lint, the audit exception gate, and that suite.
 
-Coverage from `node --test --experimental-test-coverage --import tsx/esm tests/*.test.ts` on 2026-10-19:
+Coverage from `node --test --experimental-test-coverage --import tsx/esm tests/*.test.ts` on 2026-10-20. The plan-phase baseline had `origin.ts` at 100% lines and `sidecar.ts` at about 97% lines / 63% branches. `main`, `preload`, `renderer`, `folderPicker`, `notifications`, `tray`, and the fuses file were absent from that report.
 
-| scope | line | branch | functions |
+| module | line | branch | functions |
 | --- | ---: | ---: | ---: |
-| all loaded files | 96.01% | 85.77% | 87.39% |
-| `src/sidecar.ts` | 100% | 93.06% | 96.30% |
+| loaded files | 97.22% | 87.42% | 88.81% |
+| `ipcGuard.ts` | 97.93% | 81.40% | 100% |
+| `bins.ts` | 100% | 100% | 100% |
+| `shellPolicy.ts` | 93.48% | 85.71% | 83.33% |
+| `workspaceRoots.ts` | 100% | 75.00% | 100% |
+| `sidecar.ts` | 100% | 93.06% | 96.30% |
+| `folderPicker.ts` | 87.01% | 90.91% | 80.00% |
+| `notifications.ts` | 96.77% | 82.35% | 100% |
+| `tray.ts` | 87.23% | 88.89% | 43.75% |
+| `origin.ts` | 100% | 86.96% | 83.33% |
+| `electron.fuses.ts` | 100% | 100% | 100% |
 
-`src/main.ts` and `src/preload.ts` import Electron, so this run does not load them. The e2e suite is `npm run test:e2e` after `npm ci --allow-scripts`. Without the binary it skips. CI runs it in `.github/workflows/check.yml`.
+The line goal of 85% holds on those logic modules. `tray.ts` function coverage counts the injected Electron interfaces, which this process never calls.
+
+Not loaded, because they import Electron or the DOM: `src/main.ts`, `src/preload.ts`, `src/renderer.ts`. `npm run dist:dir` was not run: `node_modules/electron` has no binary (`ignore-scripts`), and packaging would download it.
+
+The e2e suite is `npm run test:e2e` after `npm ci --allow-scripts`. Without the binary it skips. CI runs it in `.github/workflows/check.yml`.
+
+## Issues
+
+| issue | commits |
+| --- | --- |
+| [#3](https://github.com/FabioLeitao/zero-bridge-desktop/issues/3) IPC | `40ee2a1`, `9ac5adc`, `21a8d8e`, `04f931e`, `fa1f406` |
+| [#4](https://github.com/FabioLeitao/zero-bridge-desktop/issues/4) token | `2f15118` |
+| [#5](https://github.com/FabioLeitao/zero-bridge-desktop/issues/5) sidecar | `93056c9`, `7722495`. Env allowlist and `unix:` listen are still open |
+| [#6](https://github.com/FabioLeitao/zero-bridge-desktop/issues/6) shell | `278de5d`, `fa1f406`. Fuse values are locked in `package.json`; a packaged directory was not built here |
+| [#7](https://github.com/FabioLeitao/zero-bridge-desktop/issues/7) workspace | `b06c125`, `21a8d8e` |
+| [#8](https://github.com/FabioLeitao/zero-bridge-desktop/issues/8) tray | `2f7aa7a`. Start-at-login stays unimplemented |
+| [#9](https://github.com/FabioLeitao/zero-bridge-desktop/issues/9) supply | `18a7adf`. Signed auto-update does not exist |
+| [#10](https://github.com/FabioLeitao/zero-bridge-desktop/issues/10) macOS/Windows | no commit; Linux only |
+| [#11](https://github.com/FabioLeitao/zero-bridge-desktop/issues/11) ops | binaries no longer come from the renderer (`40ee2a1`, `fcf394e`). Config file, redacted logs, and locale strings are still open |

@@ -48,4 +48,17 @@ describe("sidecar environment", () => {
     assert.throws(() => childEnv({}, { passEnv: ["ELECTRON_RUN_AS_NODE"] }));
     assert.throws(() => childEnv({}, { passEnv: ["AWS_SESSION_TOKEN"] }));
   });
+
+  it("drops ZB_FAKE_* when the app is packaged", () => {
+    const packaged = childEnv({ ZB_FAKE_PERMISSION: "1", PATH: "/usr/bin" }, { packaged: true });
+    assert.equal(packaged.ZB_FAKE_PERMISSION, undefined);
+    assert.equal(packaged.PATH, "/usr/bin");
+    const listed = childEnv(
+      { ZB_FAKE_PERMISSION: "1" },
+      { packaged: true, passEnv: ["ZB_FAKE_PERMISSION"] },
+    );
+    assert.equal(listed.ZB_FAKE_PERMISSION, undefined);
+    const open = childEnv({ ZB_FAKE_PERMISSION: "1" }, { packaged: false });
+    assert.equal(open.ZB_FAKE_PERMISSION, "1");
+  });
 });

@@ -27,6 +27,8 @@ export interface SidecarOptions {
   probeUnix?: (socketPath: string) => Promise<boolean>;
   // Extra environment names from shell config. Values come from this process.
   passEnv?: readonly string[];
+  // Packaged apps do not inherit ZB_FAKE_*.
+  packaged?: boolean;
 }
 
 export class SidecarStartError extends Error {
@@ -162,7 +164,7 @@ export class SidecarController {
       args.push("--workspace-root", opts.workspaceRoot);
     }
 
-    const env = childEnv(process.env, { passEnv: opts.passEnv });
+    const env = childEnv(process.env, { passEnv: opts.passEnv, packaged: opts.packaged });
     const grace = opts.killGraceMs ?? 500;
     const proc = this.spawnImpl(bridgeBin, args, {
       env,

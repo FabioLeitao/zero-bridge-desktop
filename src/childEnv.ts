@@ -30,7 +30,7 @@ export function refusedEnvName(name: string): boolean {
 
 export function childEnv(
   parent: NodeJS.ProcessEnv,
-  opts?: { passEnv?: readonly string[] },
+  opts?: { passEnv?: readonly string[]; packaged?: boolean },
 ): NodeJS.ProcessEnv {
   const extra = new Set<string>();
   for (const name of opts?.passEnv ?? []) {
@@ -41,7 +41,9 @@ export function childEnv(
   for (const [key, value] of Object.entries(parent)) {
     if (typeof value !== "string") continue;
     if (refusedEnvName(key)) continue;
-    if (ALLOWED.has(key.toUpperCase()) || extra.has(key.toUpperCase()) || key.startsWith("ZB_FAKE_")) {
+    if (opts?.packaged && key.toUpperCase().startsWith("ZB_FAKE_")) continue;
+    const fake = !opts?.packaged && key.startsWith("ZB_FAKE_");
+    if (ALLOWED.has(key.toUpperCase()) || extra.has(key.toUpperCase()) || fake) {
       out[key] = value;
     }
   }

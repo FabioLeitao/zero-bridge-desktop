@@ -30,17 +30,19 @@ The desktop app starts the **zero-bridge** Go binary as a sidecar. The default l
 
 ## End-to-end tests
 
-`npm test` does not launch Electron. The install scripts are blocked (`.npmrc` `ignore-scripts=true`), so a normal `npm ci` does not download the Electron binary.
+`npm test` does not launch Electron. The install scripts are blocked (`.npmrc` `ignore-scripts=true`), so a normal `npm ci` does not download the Electron binary. `ignore-scripts` overrides the `allowScripts` field.
 
 To run the UI tests locally:
 
 ```bash
-npm ci --allow-scripts
+npm ci --ignore-scripts=false
 npm run build
 npm run test:e2e
 ```
 
-The suite builds `cmd/zero-bridge` and `cmd/acpfake` from the Go module. Set `ZB_BRIDGE_SRC` to that module directory, or check the bridge out at `./zero-bridge` or `../zero-bridge`. CI does this in `.github/workflows/check.yml` with `npm ci --allow-scripts`.
+On npm 11 and npm 12 the override still runs only `electron@41.10.6`. The other packages with install scripts are `false` in `allowScripts`. Node 22.23.3 ships npm 10.9.9, which ignores that field and runs every install script. CI installs npm 12.2.0 and then uses this same command (`.github/workflows/check.yml`).
+
+The suite builds `cmd/zero-bridge` and `cmd/acpfake` from the Go module. Set `ZB_BRIDGE_SRC` to that module directory, or check the bridge out at `./zero-bridge` or `../zero-bridge`.
 
 ## Update
 

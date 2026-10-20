@@ -12,11 +12,13 @@ npm run check
 npm run build
 ```
 
-Esse `npm ci` não baixa o binário do Electron. O `.npmrc` define `ignore-scripts=true`. Instale o binário só quando for abrir a janela:
+Esse `npm ci` não baixa o binário do Electron. O `.npmrc` define `ignore-scripts=true`, e essa opção se sobrepõe a `allowScripts`. Baixe o binário só quando for abrir a janela:
 
 ```bash
-npm ci --allow-scripts
+npm ci --ignore-scripts=false
 ```
+
+No npm 11 e no npm 12 isso ainda roda um único script de instalação, `electron@41.10.6`, a única entrada `true` em `allowScripts`. O `esbuild` não precisa do script: o pacote opcional `@esbuild/linux-x64` já traz o binário. O Node 22.23.3 traz o npm 10.9.9, que não tem essa lista, então o mesmo comando lá também roda os outros scripts de instalação. O CI instala o npm 12.2.0 antes.
 
 O shell lê os binários de `ZB_BRIDGE_BIN` e `ZB_AGENT_BIN`. `shell-config.json` pode definir `passEnv`, uma lista de nomes de ambiente que o sidecar pode herdar, para um agente real ainda ver a chave do provedor, `HTTPS_PROXY` ou `SSL_CERT_FILE`. A comparação ignora maiúsculas, então `Path` no Windows equivale a `PATH`. Um nome é recusado quando começa com `LD_` ou `DYLD_`, ou quando é `NODE_OPTIONS`, `ELECTRON_RUN_AS_NODE`, ou contém `TOKEN`. A bridge copia para o agente o ambiente que recebe e só remove `ZERO_BRIDGE_TOKEN`. O harness sem pacote também pode definir `ZB_E2E_BRIDGE_BIN` e `ZB_E2E_AGENT_BIN`. Um app empacotado ignora toda variável `ZB_E2E_*`. A página não escolhe o executável. Veja [docs/INSTALL.pt_BR.md](docs/INSTALL.pt_BR.md).
 
@@ -57,7 +59,7 @@ A meta de 85% de linhas vale nesses módulos de lógica. A cobertura de funçõe
 
 Não carregados, porque importam Electron ou o DOM: `src/main.ts`, `src/preload.ts`, `src/renderer.ts`. `npm run dist:dir` não rodou: `node_modules/electron` não tem binário (`ignore-scripts`), e o empacotamento baixaria esse binário.
 
-O e2e é `npm run test:e2e` depois de `npm ci --allow-scripts`. Sem o binário, os três testes ficam pulados. O CI roda a suíte em `.github/workflows/check.yml`.
+O e2e é `npm run test:e2e` depois de `npm ci --ignore-scripts=false`. Sem o binário, os três testes ficam pulados. O CI roda a suíte em `.github/workflows/check.yml`.
 
 ## Issues
 

@@ -30,17 +30,19 @@ O app desktop inicia o binário **zero-bridge** (Go) como sidecar. O listen padr
 
 ## Testes de ponta a ponta
 
-`npm test` não abre o Electron. Os scripts de instalação estão bloqueados (`.npmrc` `ignore-scripts=true`), então um `npm ci` comum não baixa o binário do Electron.
+`npm test` não abre o Electron. Os scripts de instalação estão bloqueados (`.npmrc` `ignore-scripts=true`), então um `npm ci` comum não baixa o binário do Electron. `ignore-scripts` se sobrepõe ao campo `allowScripts`.
 
 Para rodar a UI localmente:
 
 ```bash
-npm ci --allow-scripts
+npm ci --ignore-scripts=false
 npm run build
 npm run test:e2e
 ```
 
-A suíte compila `cmd/zero-bridge` e `cmd/acpfake` do módulo Go. Defina `ZB_BRIDGE_SRC` com o diretório desse módulo, ou deixe o bridge em `./zero-bridge` ou `../zero-bridge`. O CI faz isso em `.github/workflows/check.yml` com `npm ci --allow-scripts`.
+No npm 11 e no npm 12 essa exceção ainda roda só `electron@41.10.6`. Os outros pacotes com script de instalação estão `false` em `allowScripts`. O Node 22.23.3 traz o npm 10.9.9, que ignora esse campo e roda todos os scripts de instalação. O CI instala o npm 12.2.0 e depois usa este mesmo comando (`.github/workflows/check.yml`).
+
+A suíte compila `cmd/zero-bridge` e `cmd/acpfake` do módulo Go. Defina `ZB_BRIDGE_SRC` com o diretório desse módulo, ou deixe o bridge em `./zero-bridge` ou `../zero-bridge`.
 
 ## Atualização
 

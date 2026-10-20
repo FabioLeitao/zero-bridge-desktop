@@ -1,6 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, protocol, session, Tray } from "electron";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { mkdir, chmod } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { SidecarController, SidecarStartError } from "./sidecar.js";
 import { ephemeralPort } from "./listenPort.js";
 import { errorPageHtml } from "./errorPage.js";
@@ -11,7 +13,8 @@ import { IPC_CHANNELS, SidecarState } from "./types.js";
 import { IpcRejected, acceptIncoming, SenderRef } from "./ipcGuard.js";
 import { ipcLog } from "./ipcLog.js";
 import { resolveAllowedBins } from "./bins.js";
-import { defaultTokenDir } from "./tokenDir.js";
+import { appendRedactedLog } from "./redactLog.js";
+import { PRIVATE_DIR_MODE, shellPaths, type ShellPaths } from "./paths.js";
 import { fetchWorkspaceRoots } from "./workspaceRoots.js";
 import { approvedWorkspace } from "./workspaceLaunch.js";
 import { testHooks } from "./testEnv.js";
@@ -55,7 +58,7 @@ const tray = new TrayController(
 );
 const notifier = new PermissionNotifier(
   (opts) => new Notification(opts),
-  () => testHooks(process.env, app.isPackaged).noteLog,
+  () => testHooks(process.env, app.isPackaged).noteLog ?? requireDirs().logFile,
 );
 const folderPicker = new FolderPicker();
 let currentUrl: string | null = null;
@@ -63,6 +66,21 @@ let sidecarTokenPath: string | null = null;
 let sidecarToken: string | null = null;
 let singleInstanceLock = false;
 let shellConfig: ShellConfig = {};
+let dirs: ShellPaths | null = null;
+
+function requireDirs(): ShellPaths {
+  if (!dirs) throw new Error("userData required");
+  return dirs;
+}
+
+function storeShellLog(line: string): void {
+  console.error(line);
+  try {
+    appendRedactedLog(requireDirs().logFile, line);
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : "shell log failed");
+  }
+}
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -85,6 +103,16 @@ if (singleInstanceDecision(app.requestSingleInstanceLock()) === "quit") {
 }
 
 app.on("ready", async () => {
+  dirs = shellPaths({
+    platform: process.platform,
+    env: process.env,
+    userData: app.getPath("userData"),
+    logs: app.getPath("logs"),
+    tmpdir: tmpdir(),
+  });
+  await mkdir(dirs.runtimeDir, { recursive: true, mode: PRIVATE_DIR_MODE });
+  await chmod(dirs.runtimeDir, PRIVATE_DIR_MODE);
+  await mkdir(dirname(dirs.logFile), { recursive: true, mode: PRIVATE_DIR_MODE });
   await startHost({
     createWindow: () => createWindow(),
     attachTray: () => {
@@ -92,14 +120,14 @@ app.on("ready", async () => {
       tray.attach(mainWindow);
     },
     startSidecar: () => continueStartup(),
-    log: (line) => console.error(line),
+    log: storeShellLog,
   });
 });
 
 async function createWindow() {
   // Security hard code.
   app.commandLine.appendSwitch("disable-features", "TranslateUI");
-  const boundsFile = join(app.getPath("userData"), "window-bounds.json");
+  const boundsFile = requireDirs().boundsFile;
   const saved = await loadWindowBounds(boundsFile);
   mainWindow = new BrowserWindow({
     ...(saved ? { x: saved.x, y: saved.y } : {}),
@@ -166,7 +194,7 @@ async function createWindow() {
 }
 
 async function continueStartup() {
-  const loaded = await readShellConfig(join(app.getPath("userData"), "shell-config.json"));
+  const loaded = await readShellConfig(requireDirs().configFile);
   shellConfig = loaded.config;
   if (loaded.error) {
     await showSidecarError("crashed", loaded.error);
@@ -258,7 +286,7 @@ async function startSidecar(workspaceRoot?: string) {
   const tokenFromEnv = hooks.tokenFile;
   const tokenDir = tokenFromEnv
     ? String(tokenFromEnv).replace(/token\.txt$/, "")
-    : defaultTokenDir(app.getPath("userData"));
+    : requireDirs().tokenDir;
   const handle = await controller.launch({
     bridgeBin: bins.bridgeBin,
     agentBin: bins.agentBin,

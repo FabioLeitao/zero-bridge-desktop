@@ -13,7 +13,7 @@ import { ipcLog } from "./ipcLog.js";
 import { resolveAllowedBins } from "./bins.js";
 import { defaultTokenDir } from "./tokenDir.js";
 import { fetchWorkspaceRoots } from "./workspaceRoots.js";
-import { cwdForAgent } from "./workspaceLaunch.js";
+import { approvedWorkspace } from "./workspaceLaunch.js";
 import { testHooks } from "./testEnv.js";
 import { rendererLaunchView } from "./launchView.js";
 import {
@@ -142,7 +142,7 @@ app.on("ready", async () => {
 
   try {
     resolveAllowedBins(process.env, app.isPackaged);
-    await startSidecar(cwdForAgent(undefined, folderPicker.chosen()));
+    await startSidecar(await approvedWorkspace(folderPicker.roots(), folderPicker.chosen()));
   } catch (err) {
     if (err instanceof SidecarStartError) {
       await showSidecarError(err.state, "the sidecar did not start");
@@ -157,7 +157,7 @@ app.on("ready", async () => {
 ipcMain.handle(IPC_CHANNELS.LAUNCH, async (evt, payload) => {
   try {
     trusted(IPC_CHANNELS.LAUNCH, evt, payload);
-    return startSidecar(cwdForAgent(undefined, folderPicker.chosen()));
+    return startSidecar(await approvedWorkspace(folderPicker.roots(), folderPicker.chosen()));
   } catch (e) {
     if (e instanceof IpcRejected) {
       noteRejection(IPC_CHANNELS.LAUNCH, e, payload);

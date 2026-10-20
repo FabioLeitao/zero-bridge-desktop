@@ -7,7 +7,7 @@ import { IPC_CHANNELS } from "../src/types.js";
 import { IpcRejected, acceptIncoming } from "../src/ipcGuard.js";
 import { FolderPicker } from "../src/folderPicker.js";
 import { pathAllowed } from "../src/workspaceRoots.js";
-import { cwdForAgent } from "../src/workspaceLaunch.js";
+import { approvedWorkspace, cwdForAgent } from "../src/workspaceLaunch.js";
 
 const origin = "http://127.0.0.1:9/";
 const sender = { webContentsId: 4, frameRoutingId: 8, frameUrl: origin };
@@ -53,5 +53,9 @@ describe("renderer workspace", () => {
     const chosen = await picker.pick({}, ok);
     assert.equal(chosen, inside);
     assert.equal(cwdForAgent("/tmp/outside", picker.chosen()), inside);
+    assert.equal(await approvedWorkspace([root], inside), inside);
+    assert.equal(await approvedWorkspace([root], link), undefined);
+    assert.equal(await approvedWorkspace([root], dotdot), undefined);
+    assert.equal(await approvedWorkspace([root], outside), undefined);
   });
 });

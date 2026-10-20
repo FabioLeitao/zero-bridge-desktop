@@ -26,6 +26,7 @@ import {
 import { TrayController } from "./tray.js";
 import { PermissionNotifier, PermissionNotice } from "./notifications.js";
 import { FolderPicker } from "./folderPicker.js";
+import { loginItemSettings } from "./loginItem.js";
 
 let mainWindow: BrowserWindow | null = null;
 const controller = new SidecarController();
@@ -73,6 +74,8 @@ if (singleInstanceDecision(app.requestSingleInstanceLock()) === "quit") {
 app.on("ready", async () => {
   // Security hard code.
   app.commandLine.appendSwitch("disable-features", "TranslateUI");
+  // Off until a local config opts in. The call uses the desktop session, not extra privilege.
+  app.setLoginItemSettings(loginItemSettings(false));
 
   const boundsFile = join(app.getPath("userData"), "window-bounds.json");
   const saved = await loadWindowBounds(boundsFile);

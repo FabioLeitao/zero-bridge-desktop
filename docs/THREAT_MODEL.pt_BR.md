@@ -90,7 +90,7 @@ O preload lê o texto de `section.perm` e envia `zb:permission-request`. O proce
 
 ### Cadeia de suprimento
 
-Não há dependências de produção. `npm audit --omit=dev` está limpo. O lockfile tem um aviso aceito, `GHSA-hp3w-g68c-fv3c` (`sprintf-js@1.1.3`, via `electron-builder`), registrado em [AUDIT_EXCEPTION.pt_BR.md](AUDIT_EXCEPTION.pt_BR.md) com revisão em 2027-01-19. `npm run audit` falha em qualquer outro id. Scripts de instalação ficam desligados, salvo `--allow-scripts`. Não há auto-update. O que precisaria existir antes está em [AUTO_UPDATE.pt_BR.md](AUTO_UPDATE.pt_BR.md). Os alvos Linux são AppImage e deb. macOS e Windows ficam para depois; não são gerados aqui.
+Não há dependências de produção. `npm audit --omit=dev` está limpo. O lockfile tem um aviso aceito, `GHSA-hp3w-g68c-fv3c` (`sprintf-js@1.1.3`, via `electron-builder`), registrado em [AUDIT_EXCEPTION.pt_BR.md](AUDIT_EXCEPTION.pt_BR.md) com revisão em 2027-01-19. `npm run audit` falha em qualquer outro id. Scripts de instalação ficam desligados (`ignore-scripts=true`). `npm ci --ignore-scripts=false` baixa o Electron, e `allowScripts` então permite só `electron@41.10.6` no npm 11 e no npm 12. Não há auto-update. O que precisaria existir antes está em [AUTO_UPDATE.pt_BR.md](AUTO_UPDATE.pt_BR.md). Os alvos Linux são AppImage e deb. macOS e Windows ficam para depois; não são gerados aqui.
 
 ## Cobertura (2026-10-20)
 

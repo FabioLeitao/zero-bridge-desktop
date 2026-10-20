@@ -12,11 +12,13 @@ npm run check
 npm run build
 ```
 
-The Electron binary is not downloaded by that `npm ci`. `.npmrc` sets `ignore-scripts=true`. Install it only when you intend to open the window:
+That `npm ci` does not download the Electron binary. `.npmrc` sets `ignore-scripts=true`, and that setting overrides `allowScripts`. Download the binary only when you intend to open the window:
 
 ```bash
-npm ci --allow-scripts
+npm ci --ignore-scripts=false
 ```
+
+On npm 11 and npm 12 that still runs one install script, `electron@41.10.6`, the only `true` entry in `allowScripts`. `esbuild` does not need its script: the optional `@esbuild/linux-x64` package already contains the binary. Node 22.23.3 ships npm 10.9.9, which has no allowlist, so the same command there also runs the other install scripts. CI installs npm 12.2.0 first.
 
 The shell reads the binaries from `ZB_BRIDGE_BIN` and `ZB_AGENT_BIN`. `shell-config.json` may set `passEnv` to a list of environment names the sidecar may inherit, so a real agent still sees a provider key, `HTTPS_PROXY`, or `SSL_CERT_FILE`. Names are matched without case, so Windows `Path` matches `PATH`. A name is refused when it starts with `LD_` or `DYLD_`, or when it is `NODE_OPTIONS`, `ELECTRON_RUN_AS_NODE`, or contains `TOKEN`. The bridge copies the environment it receives to the agent and only strips `ZERO_BRIDGE_TOKEN`. The unpackaged harness may also set `ZB_E2E_BRIDGE_BIN` and `ZB_E2E_AGENT_BIN`. A packaged app ignores every `ZB_E2E_*` variable. The page cannot choose a binary. See [docs/INSTALL.md](docs/INSTALL.md).
 
@@ -57,7 +59,7 @@ The line goal of 85% holds on those logic modules. `tray.ts` function coverage c
 
 Not loaded, because they import Electron or the DOM: `src/main.ts`, `src/preload.ts`, `src/renderer.ts`. `npm run dist:dir` was not run: `node_modules/electron` has no binary (`ignore-scripts`), and packaging would download it.
 
-The e2e suite is `npm run test:e2e` after `npm ci --allow-scripts`. Without the binary it skips. CI runs it in `.github/workflows/check.yml`.
+The e2e suite is `npm run test:e2e` after `npm ci --ignore-scripts=false`. Without the binary it skips. CI runs it in `.github/workflows/check.yml`.
 
 ## Issues
 

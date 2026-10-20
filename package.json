@@ -14,8 +14,13 @@
     "audit": "node scripts/audit-exception.mjs",
     "check": "npm run lint && npm run audit && npm test",
     "dist": "electron-builder --linux && node scripts/checksums.mjs && node scripts/sbom.mjs",
-    "dist:dir": "electron-builder --linux dir",
-    "postinstall": "node -e \"require('electron-builder').installAppDependencies({arch: process.arch, platform: 'linux'})\""
+    "dist:dir": "electron-builder --linux dir"
+  },
+  "allowScripts": {
+    "electron@41.10.6": true,
+    "esbuild@0.28.2": false,
+    "electron-winstaller@5.4.0": false,
+    "fsevents@2.3.3": false
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",

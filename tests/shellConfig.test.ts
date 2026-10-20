@@ -26,6 +26,17 @@ describe("shell config", () => {
     assert.equal(cfg.unixSocket, "/tmp/zb.sock");
     assert.equal(cfg.openAtLogin, true);
     assert.equal(cfg.locale, "pt-BR");
+    assert.deepEqual(cfg.passEnv, undefined);
+  });
+
+  it("reads passEnv names and rejects a loader or token name", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "zb-pass-"));
+    const path = join(dir, "shell-config.json");
+    writeFileSync(path, JSON.stringify({ passEnv: ["OPENAI_API_KEY", "HTTPS_PROXY"] }));
+    const cfg = await loadShellConfig(path);
+    assert.deepEqual(cfg.passEnv, ["OPENAI_API_KEY", "HTTPS_PROXY"]);
+    assert.throws(() => parseShellConfig(JSON.stringify({ passEnv: ["LD_PRELOAD"] })));
+    assert.throws(() => parseShellConfig(JSON.stringify({ passEnv: ["MY_TOKEN"] })));
   });
 
   it("returns an empty config when the file is absent", async () => {

@@ -18,7 +18,7 @@ The Electron binary is not downloaded by that `npm ci`. `.npmrc` sets `ignore-sc
 npm ci --allow-scripts
 ```
 
-The shell reads the binaries from `ZB_BRIDGE_BIN` and `ZB_AGENT_BIN`. The unpackaged harness may also set `ZB_E2E_BRIDGE_BIN` and `ZB_E2E_AGENT_BIN`. A packaged app ignores every `ZB_E2E_*` variable. The page cannot choose a binary. See [docs/INSTALL.md](docs/INSTALL.md).
+The shell reads the binaries from `ZB_BRIDGE_BIN` and `ZB_AGENT_BIN`. `shell-config.json` may set `passEnv` to a list of environment names the sidecar may inherit, so a real agent still sees a provider key, `HTTPS_PROXY`, or `SSL_CERT_FILE`. Names are matched without case, so Windows `Path` matches `PATH`. A name is refused when it starts with `LD_` or `DYLD_`, or when it is `NODE_OPTIONS`, `ELECTRON_RUN_AS_NODE`, or contains `TOKEN`. The bridge copies the environment it receives to the agent and only strips `ZERO_BRIDGE_TOKEN`. The unpackaged harness may also set `ZB_E2E_BRIDGE_BIN` and `ZB_E2E_AGENT_BIN`. A packaged app ignores every `ZB_E2E_*` variable. The page cannot choose a binary. See [docs/INSTALL.md](docs/INSTALL.md).
 
 ## Security
 

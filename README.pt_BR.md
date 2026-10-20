@@ -18,7 +18,7 @@ Esse `npm ci` não baixa o binário do Electron. O `.npmrc` define `ignore-scrip
 npm ci --allow-scripts
 ```
 
-O shell lê os binários de `ZB_BRIDGE_BIN` e `ZB_AGENT_BIN`. O harness sem pacote também pode definir `ZB_E2E_BRIDGE_BIN` e `ZB_E2E_AGENT_BIN`. Um app empacotado ignora toda variável `ZB_E2E_*`. A página não escolhe o executável. Veja [docs/INSTALL.pt_BR.md](docs/INSTALL.pt_BR.md).
+O shell lê os binários de `ZB_BRIDGE_BIN` e `ZB_AGENT_BIN`. `shell-config.json` pode definir `passEnv`, uma lista de nomes de ambiente que o sidecar pode herdar, para um agente real ainda ver a chave do provedor, `HTTPS_PROXY` ou `SSL_CERT_FILE`. A comparação ignora maiúsculas, então `Path` no Windows equivale a `PATH`. Um nome é recusado quando começa com `LD_` ou `DYLD_`, ou quando é `NODE_OPTIONS`, `ELECTRON_RUN_AS_NODE`, ou contém `TOKEN`. A bridge copia para o agente o ambiente que recebe e só remove `ZERO_BRIDGE_TOKEN`. O harness sem pacote também pode definir `ZB_E2E_BRIDGE_BIN` e `ZB_E2E_AGENT_BIN`. Um app empacotado ignora toda variável `ZB_E2E_*`. A página não escolhe o executável. Veja [docs/INSTALL.pt_BR.md](docs/INSTALL.pt_BR.md).
 
 ## Segurança
 

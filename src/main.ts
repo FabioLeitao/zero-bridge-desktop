@@ -246,6 +246,7 @@ async function startSidecar(workspaceRoot?: string) {
     tokenDir,
     workspaceRoot,
     unixSocket: shellConfig.unixSocket,
+    passEnv: shellConfig.passEnv,
     healthTimeoutMs: 15000,
   });
 

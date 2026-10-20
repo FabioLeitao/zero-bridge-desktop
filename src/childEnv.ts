@@ -21,11 +21,29 @@ const ALLOWED = new Set([
   "COMSPEC",
 ]);
 
-export function childEnv(parent: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+export function refusedEnvName(name: string): boolean {
+  const upper = name.toUpperCase();
+  if (upper.startsWith("LD_") || upper.startsWith("DYLD_")) return true;
+  if (upper === "NODE_OPTIONS" || upper === "ELECTRON_RUN_AS_NODE") return true;
+  return upper.includes("TOKEN");
+}
+
+export function childEnv(
+  parent: NodeJS.ProcessEnv,
+  opts?: { passEnv?: readonly string[] },
+): NodeJS.ProcessEnv {
+  const extra = new Set<string>();
+  for (const name of opts?.passEnv ?? []) {
+    if (refusedEnvName(name)) throw new Error("passEnv name refused");
+    extra.add(name.toUpperCase());
+  }
   const out: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(parent)) {
     if (typeof value !== "string") continue;
-    if (ALLOWED.has(key) || key.startsWith("ZB_FAKE_")) out[key] = value;
+    if (refusedEnvName(key)) continue;
+    if (ALLOWED.has(key.toUpperCase()) || extra.has(key.toUpperCase()) || key.startsWith("ZB_FAKE_")) {
+      out[key] = value;
+    }
   }
   return out;
 }

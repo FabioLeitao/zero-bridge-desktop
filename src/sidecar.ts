@@ -25,6 +25,8 @@ export interface SidecarOptions {
   probeHealth?: (url: string) => Promise<boolean>;
   // Unix health probe. The default uses the socket path and GET /health, with no headers.
   probeUnix?: (socketPath: string) => Promise<boolean>;
+  // Extra environment names from shell config. Values come from this process.
+  passEnv?: readonly string[];
 }
 
 export class SidecarStartError extends Error {
@@ -160,7 +162,7 @@ export class SidecarController {
       args.push("--workspace-root", opts.workspaceRoot);
     }
 
-    const env = childEnv(process.env);
+    const env = childEnv(process.env, { passEnv: opts.passEnv });
     const grace = opts.killGraceMs ?? 500;
     const proc = this.spawnImpl(bridgeBin, args, {
       env,

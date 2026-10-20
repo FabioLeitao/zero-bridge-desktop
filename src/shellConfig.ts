@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { refusedEnvName } from "./childEnv.js";
 
 export interface ShellConfig {
   bridgeBin?: string;
@@ -6,6 +7,7 @@ export interface ShellConfig {
   unixSocket?: string;
   openAtLogin?: boolean;
   locale?: "en" | "pt-BR";
+  passEnv?: string[];
 }
 
 const REJECTED = new Set(["token", "tokenPath", "tokenFile", "authorization"]);
@@ -28,6 +30,17 @@ export function parseShellConfig(text: string): ShellConfig {
   }
   if (typeof record.openAtLogin === "boolean") out.openAtLogin = record.openAtLogin;
   if (record.locale === "en" || record.locale === "pt-BR") out.locale = record.locale;
+  if (record.passEnv !== undefined) {
+    if (!Array.isArray(record.passEnv)) throw new Error("passEnv name refused");
+    const names: string[] = [];
+    for (const item of record.passEnv) {
+      if (typeof item !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(item) || refusedEnvName(item)) {
+        throw new Error("passEnv name refused");
+      }
+      names.push(item);
+    }
+    out.passEnv = names;
+  }
   return out;
 }
 

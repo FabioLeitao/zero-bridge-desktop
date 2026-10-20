@@ -4,8 +4,10 @@ import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:net";
+import { request as httpRequest } from "node:http";
 import { SidecarState } from "./types.js";
 import { childEnv } from "./childEnv.js";
+import { listenAddress, unixHealthRequest } from "./listenAddress.js";
 
 export interface SidecarOptions {
   bridgeBin: string;
@@ -21,6 +23,8 @@ export interface SidecarOptions {
   healthTimeoutMs?: number;
   // Test double. The default probe fetches the URL and does not send the token.
   probeHealth?: (url: string) => Promise<boolean>;
+  // Unix health probe. The default uses the socket path and GET /health, with no headers.
+  probeUnix?: (socketPath: string) => Promise<boolean>;
 }
 
 export class SidecarStartError extends Error {
@@ -41,6 +45,25 @@ export function classifySidecarFailure(stderr: string): SidecarState {
 async function defaultHealthProbe(url: string): Promise<boolean> {
   const res = await fetch(url);
   return res.ok;
+}
+
+async function defaultUnixProbe(socketPath: string): Promise<boolean> {
+  const spec = unixHealthRequest(socketPath);
+  return new Promise((resolve) => {
+    const req = httpRequest(
+      { socketPath: spec.socketPath, path: spec.path, method: "GET", headers: spec.headers, timeout: 200 },
+      (res) => {
+        res.resume();
+        resolve(res.statusCode === 200);
+      },
+    );
+    req.on("error", () => resolve(false));
+    req.on("timeout", () => {
+      req.destroy();
+      resolve(false);
+    });
+    req.end();
+  });
 }
 
 export type SidecarSpawn = (
@@ -101,8 +124,10 @@ export class SidecarController {
       throw new SidecarStartError("agent-not-found");
     }
 
-    // Resolve ephemeral port if 0
-    const port = opts.port === 0 ? await this.findFreePort() : opts.port;
+    listenAddress({ port: opts.port, unixSocket: opts.unixSocket });
+    // Resolve ephemeral port if 0. A unix socket does not bind a TCP port.
+    const port = !opts.unixSocket && opts.port === 0 ? await this.findFreePort() : opts.port;
+    const listen = listenAddress({ port, unixSocket: opts.unixSocket });
 
     const dir = join(opts.tokenDir, randomUUID());
     await fs.mkdir(dir, { recursive: true, mode: 0o700 });
@@ -120,7 +145,7 @@ export class SidecarController {
 
     const args = [
       "--listen",
-      `127.0.0.1:${port}`,
+      listen,
       "--agent-cmd",
       agentBin,
       "--agent-arg",
@@ -193,11 +218,13 @@ export class SidecarController {
 
     const timeout = opts.healthTimeoutMs ?? 5000;
     const probe = opts.probeHealth ?? defaultHealthProbe;
+    const probeUnix = opts.probeUnix ?? defaultUnixProbe;
     const healthUrl = `http://127.0.0.1:${port}/health`;
     const deadline = Date.now() + timeout;
     while (timeout > 0 && Date.now() < deadline && handle.state === "starting") {
       try {
-        if (await probe(healthUrl)) {
+        const healthy = opts.unixSocket ? await probeUnix(opts.unixSocket) : await probe(healthUrl);
+        if (healthy) {
           handle.state = "running";
           break;
         }

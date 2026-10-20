@@ -1,6 +1,14 @@
 import { readFile } from "node:fs/promises";
 import { refusedEnvName } from "./childEnv.js";
 
+export const AGENT_ARG_MAX = 256;
+export const PROFILE_MAX = 32;
+const DEFAULT_AGENT_ARGS = ["acp"];
+
+export function agentArgsForLaunch(agentArgs: readonly string[] | undefined): readonly string[] {
+  return agentArgs ?? DEFAULT_AGENT_ARGS;
+}
+
 export interface ShellConfig {
   bridgeBin?: string;
   agentBin?: string;
@@ -8,6 +16,8 @@ export interface ShellConfig {
   openAtLogin?: boolean;
   locale?: "en" | "pt-BR";
   passEnv?: string[];
+  agentArgs?: string[];
+  profile?: string;
 }
 
 const REJECTED = new Set(["token", "tokenPath", "tokenFile", "authorization"]);
@@ -41,7 +51,35 @@ export function parseShellConfig(text: string): ShellConfig {
     }
     out.passEnv = names;
   }
+  if (record.agentArgs !== undefined) {
+    out.agentArgs = parseAgentArgs(record.agentArgs);
+  }
+  if (record.profile !== undefined) {
+    out.profile = parseProfile(record.profile);
+  }
   return out;
+}
+
+function parseAgentArgs(value: unknown): string[] {
+  if (!Array.isArray(value)) throw new Error("agentArgs refused");
+  const names: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string" || item.length < 1 || item.length > AGENT_ARG_MAX) {
+      throw new Error("agentArgs refused");
+    }
+    if (item.includes("\n") || item.includes("\r") || item.includes("\0")) {
+      throw new Error("agentArgs refused");
+    }
+    names.push(item);
+  }
+  return names;
+}
+
+function parseProfile(value: unknown): string {
+  if (typeof value !== "string" || value.length > PROFILE_MAX || !/^[a-z0-9-]+$/.test(value)) {
+    throw new Error("profile refused");
+  }
+  return value;
 }
 
 export async function readShellConfig(path: string): Promise<{ config: ShellConfig; error?: string }> {

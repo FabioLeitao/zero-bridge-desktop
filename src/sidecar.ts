@@ -7,6 +7,7 @@ import { createServer } from "node:net";
 import { request as httpRequest } from "node:http";
 import { SidecarState } from "./types.js";
 import { childEnv } from "./childEnv.js";
+import { agentArgsForLaunch } from "./shellConfig.js";
 import { listenAddress, unixHealthRequest } from "./listenAddress.js";
 
 export interface SidecarOptions {
@@ -19,7 +20,7 @@ export interface SidecarOptions {
   unixSocket?: string;
   // How long kill() waits between SIGTERM and SIGKILL. Tests pass 0.
   killGraceMs?: number;
-  // How long to wait for GET /health. Zero skips the wait.
+  // How long to wait for GET /health. A timeout of 0 skips the wait.
   healthTimeoutMs?: number;
   // Test double. The default probe fetches the URL and does not send the token.
   probeHealth?: (url: string) => Promise<boolean>;
@@ -27,6 +28,10 @@ export interface SidecarOptions {
   probeUnix?: (socketPath: string) => Promise<boolean>;
   // Extra environment names from shell config. Values come from this process.
   passEnv?: readonly string[];
+  // Agent argv from shell config. Absent means --agent-arg acp. An empty list means none.
+  agentArgs?: readonly string[];
+  // Bridge profile from shell config. Absent means no --profile.
+  profile?: string;
   // Packaged apps do not inherit ZB_FAKE_*.
   packaged?: boolean;
 }
@@ -147,18 +152,12 @@ export class SidecarController {
       throw err;
     }
 
-    const args = [
-      "--listen",
-      listen,
-      "--agent-cmd",
-      agentBin,
-      "--agent-arg",
-      "acp",
-      "--token-file",
-      tokenPath,
-      "--permission-timeout",
-      "60s",
-    ];
+    const args = ["--listen", listen, "--agent-cmd", agentBin];
+    for (const arg of agentArgsForLaunch(opts.agentArgs)) {
+      args.push("--agent-arg", arg);
+    }
+    if (opts.profile) args.push("--profile", opts.profile);
+    args.push("--token-file", tokenPath, "--permission-timeout", "60s");
 
     if (opts.workspaceRoot) {
       args.push("--workspace-root", opts.workspaceRoot);

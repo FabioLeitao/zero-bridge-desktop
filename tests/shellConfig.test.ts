@@ -3,7 +3,14 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadShellConfig, parseShellConfig, readShellConfig } from "../src/shellConfig.js";
+import {
+  AGENT_ARG_MAX,
+  PROFILE_MAX,
+  agentArgsForLaunch,
+  loadShellConfig,
+  parseShellConfig,
+  readShellConfig,
+} from "../src/shellConfig.js";
 import { errorPageHtml } from "../src/errorPage.js";
 import { configBinaryAllowed, resolveAllowedBins } from "../src/bins.js";
 
@@ -60,6 +67,41 @@ describe("shell config", () => {
     const rejected = await readShellConfig(secret);
     assert.match(rejected.error ?? "", /rejects secrets/);
     assert.equal(errorPageHtml("crashed", rejected.error!).includes("sekret-token"), false);
+  });
+
+  it("reads agent arguments and a short profile", () => {
+    const cfg = parseShellConfig(JSON.stringify({ agentArgs: ["acp", "e2e-marker"], profile: "generic" }));
+    assert.deepEqual(cfg.agentArgs, ["acp", "e2e-marker"]);
+    assert.equal(cfg.profile, "generic");
+  });
+
+  it("leaves agent arguments unset when the config has none", () => {
+    const cfg = parseShellConfig(JSON.stringify({ locale: "en" }));
+    assert.equal(cfg.agentArgs, undefined);
+    assert.equal(cfg.profile, undefined);
+    assert.deepEqual(agentArgsForLaunch(cfg.agentArgs), ["acp"]);
+  });
+
+  it("keeps an explicit empty agent argument list empty", () => {
+    const cfg = parseShellConfig(JSON.stringify({ agentArgs: [] }));
+    assert.deepEqual(cfg.agentArgs, []);
+    assert.deepEqual(agentArgsForLaunch(cfg.agentArgs), []);
+  });
+
+  it("refuses an agent argument with a newline, a NUL, or over the length limit", () => {
+    assert.throws(() => parseShellConfig(JSON.stringify({ agentArgs: ["a\nb"] })), /agentArgs refused/);
+    assert.throws(() => parseShellConfig(JSON.stringify({ agentArgs: ["a\rb"] })), /agentArgs refused/);
+    assert.throws(() => parseShellConfig(JSON.stringify({ agentArgs: ["a\0b"] })), /agentArgs refused/);
+    assert.throws(() => parseShellConfig(JSON.stringify({ agentArgs: ["x".repeat(AGENT_ARG_MAX + 1)] })), /agentArgs refused/);
+    assert.throws(() => parseShellConfig(JSON.stringify({ agentArgs: [1] })), /agentArgs refused/);
+  });
+
+  it("refuses a profile outside the short lowercase pattern", () => {
+    assert.throws(() => parseShellConfig(JSON.stringify({ profile: "Zero" })), /profile refused/);
+    assert.throws(() => parseShellConfig(JSON.stringify({ profile: "has space" })), /profile refused/);
+    assert.throws(() => parseShellConfig(JSON.stringify({ profile: "a.b" })), /profile refused/);
+    assert.throws(() => parseShellConfig(JSON.stringify({ profile: "" })), /profile refused/);
+    assert.throws(() => parseShellConfig(JSON.stringify({ profile: "a".repeat(PROFILE_MAX + 1) })), /profile refused/);
   });
 
   it("rejects token, token path, and authorization", () => {

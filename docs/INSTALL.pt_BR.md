@@ -21,6 +21,31 @@ zero-bridge-desktop
 
 O app desktop inicia o binário **zero-bridge** (Go) como sidecar. O listen padrão é uma porta loopback efêmera. Depois que `GET /health` responde, o shell faz login, grava o cookie `zb_session` e carrega `http://127.0.0.1:<porta>/`. Quando `shell-config.json` define um `unixSocket` absoluto, a bridge não escuta TCP. O shell faz login e carrega a UI por esse socket (`zb://bridge/`) e não abre um proxy TCP. A bridge continua criando o socket no modo `0600`.
 
+## shell-config.json
+
+O arquivo fica em `userData/shell-config.json`. O renderer não define esses campos. Um valor inválido aborta a partida e a página de erro mostra a causa, não o corpo do arquivo.
+
+| Campo | Forma | Lançamento |
+| --- | --- | --- |
+| `bridgeBin`, `agentBin` | string não vazia | caminhos absolutos que o processo principal confere |
+| `agentArgs` | lista de strings | cada item é um `--agent-arg`. O item tem de ter de 1 a 256 caracteres e não pode conter quebra de linha nem NUL. Ausente significa nenhum `--agent-arg` |
+| `profile` | string | de 1 a 32 caracteres em `[a-z0-9-]`, passado como `--profile` quando definido |
+| `passEnv` | lista de nomes | nomes de ambiente que o sidecar pode herdar |
+| `unixSocket` | caminho absoluto | escuta nesse socket em vez de TCP |
+| `openAtLogin` | boolean | iniciar com o login |
+| `locale` | `en` ou `pt-BR` | idioma do shell |
+
+A bridge aceita os nomes de perfil `generic` e `zero`. Qualquer outro nome que passe no padrão do shell ainda falha quando o sidecar sobe.
+
+A suíte de ponta a ponta compila `cmd/acpfake` como agente. Esse binário é um dublê de teste, não um caminho de produto. Uma config que o exercita fica assim. O binário em si vem de `ZB_AGENT_BIN` ou `agentBin`, não deste exemplo:
+
+```json
+{
+  "agentArgs": ["acp", "e2e-marker"],
+  "profile": "generic"
+}
+```
+
 ## Token e Segurança
 
 - Um **token por lançamento** é gerado pelo processo principal do Electron e escrito num arquivo `0600` em `userData/tokens/<uuid>/` (`0700`). Se o `chmod` falha, o diretório é apagado e o lançamento aborta. `ZB_E2E_TOKEN_FILE` só troca o diretório nos testes.

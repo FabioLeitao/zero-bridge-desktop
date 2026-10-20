@@ -62,6 +62,15 @@ describe("ipc rejection", () => {
     });
   }
 
+  it("names forbidden launch fields", () => {
+    for (const field of ["bridgeBin", "agentBin", "tokenPath", "workspaceRoot"]) {
+      assert.throws(
+        () => acceptIncoming(IPC_CHANNELS.LAUNCH, sender, expected, { [field]: "/tmp/x" }),
+        (err: unknown) => err instanceof IpcRejected && err.message === "forbidden field",
+      );
+    }
+  });
+
   it("rejects an unknown channel", () => {
     assert.throws(
       () => acceptIncoming("zb:nope", sender, expected, undefined),

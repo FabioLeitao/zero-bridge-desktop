@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import {
   SHELL_CSP,
   denyPagePermission,
+  denyPermissionCheck,
   navigationDecision,
   windowOpenDecision,
   withShellCsp,
@@ -38,6 +39,7 @@ describe("shell policy", () => {
       allowed = value;
     });
     assert.equal(allowed, false);
+    assert.equal(denyPermissionCheck(), false);
   });
 
   it("locks the fuse values that packaging applies", () => {

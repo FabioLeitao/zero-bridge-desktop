@@ -19,12 +19,12 @@ zero-bridge-desktop
 
 ## Como funciona
 
-O app desktop inicia o binário **zero-bridge** (Go) como sidecar em uma porta loopback local (ou Unix socket quando S21 chegar). O bridge spawna o agente ACP (`zero acp` ou `acpfake` para testes). A UI é servida pelo bridge em `http://127.0.0.1:<porta>/`.
+O app desktop inicia o binário **zero-bridge** (Go) como sidecar numa porta loopback efêmera. O bridge spawna o agente ACP (`zero acp`, ou `acpfake` nos testes). Depois que `GET /health` responde, o shell faz login em loopback, grava o cookie `zb_session` e carrega `http://127.0.0.1:<porta>/`. O listen por Unix socket existe no bridge e este shell ainda não o usa.
 
 ## Token e Segurança
 
-- Um **token por lançamento** é gerado pelo processo principal do Electron e escrito em um arquivo `0600` dentro de um diretório `0700` (`$XDG_RUNTIME_DIR/zb-<uuid>/token.txt` ou `$TMPDIR/zb-<uuid>/token.txt`).
-- O token é passado ao bridge via `--token-file`. Nunca aparece em argv, logs, URL ou no processo renderer.
+- Um **token por lançamento** é gerado pelo processo principal do Electron e escrito num arquivo `0600` em `userData/tokens/<uuid>/` (`0700`). Se o `chmod` falha, o diretório é apagado e o lançamento aborta. `ZB_E2E_TOKEN_FILE` só troca o diretório nos testes.
+- O token vai ao bridge por `--token-file`. Ele não entra em argv, logs, URL nem no objeto devolvido ao renderer. O cookie de sessão é gravado pelo processo principal.
 - O bridge exige: bind apenas loopback, validação Host/Origin, sem CORS, CSP estrito.
 - Notificações nativas para pedidos de permissão mostram **apenas o título da ferramenta** (texto puro, sanitizado). Saída do agente nunca aparece em notificações.
 

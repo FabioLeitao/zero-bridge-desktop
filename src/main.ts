@@ -1,12 +1,18 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, session, Tray } from "electron";
 import { join } from "node:path";
 import { SidecarController } from "./sidecar.js";
-import { sidecarOrigin, isLoopbackHost, sameOrigin } from "./origin.js";
 import { IPC_CHANNELS } from "./types.js";
 import { IpcRejected, acceptIncoming, SenderRef } from "./ipcGuard.js";
 import { resolveAllowedBins } from "./bins.js";
 import { defaultTokenDir } from "./tokenDir.js";
 import { rendererLaunchView } from "./launchView.js";
+import {
+  denyPagePermission,
+  denyPermissionCheck,
+  navigationDecision,
+  windowOpenDecision,
+  withShellCsp,
+} from "./shellPolicy.js";
 import { TrayController } from "./tray.js";
 import { PermissionNotifier, PermissionNotice } from "./notifications.js";
 import { FolderPicker } from "./folderPicker.js";
@@ -56,28 +62,22 @@ app.on("ready", () => {
   tray.attach(mainWindow);
   notifier.attach(mainWindow);
 
-  // CSP baseline.
+  // CSP and page permissions. The shell denies every permission request.
   const ses = session.defaultSession;
+  ses.setPermissionRequestHandler(denyPagePermission);
+  ses.setPermissionCheckHandler(denyPermissionCheck);
   ses.webRequest.onHeadersReceived((details, cb) => {
-    const headers = { ...details.responseHeaders };
-    cb({ responseHeaders: headers });
+    cb({ responseHeaders: withShellCsp(details.responseHeaders ?? {}) });
   });
 
   // Block all popups/new windows.
-  mainWindow.webContents.setWindowOpenHandler((details) => ({ action: "deny" }));
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: windowOpenDecision() }));
 
-  // Navigation guard: only same origin as the sidecar.
-  mainWindow.webContents.on("will-navigate", (_evt, url) => {
-    if (!currentUrl) return;
-    const dest = new URL(url);
-    const base = new URL(currentUrl);
-    if (!sameOrigin(dest, base)) _evt.preventDefault();
-  });
-
-  // Handle drag & drop folders (validate against workspace roots).
-  mainWindow.webContents.on("will-navigate", (_evt, url) => {
-    // Already handled above.
-  });
+  const guardNavigation = (event: { preventDefault(): void }, url: string) => {
+    if (navigationDecision(currentUrl, url) === "deny") event.preventDefault();
+  };
+  mainWindow.webContents.on("will-navigate", guardNavigation);
+  mainWindow.webContents.on("will-redirect", guardNavigation);
 
   // Drop handler on the window (renderer sends path via IPC).
   ipcMain.handle(IPC_CHANNELS.FOLDER_DROP, async (evt, payload) => {

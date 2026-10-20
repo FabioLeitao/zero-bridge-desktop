@@ -3,6 +3,7 @@
   "version": "0.1.0-alpha",
   "description": "Desktop shell for zero-bridge: Electron sidecar, tray, notifications. Bridge core stays in zero-bridge (Go, stdlib).",
   "license": "MIT",
+  "homepage": "https://github.com/FabioLeitao/zero-bridge-desktop",
   "private": true,
   "type": "module",
   "main": "dist/src/main.js",
@@ -15,7 +16,8 @@
     "check": "npm run lint && npm run audit && npm test",
     "dist": "electron-builder --linux && node scripts/checksums.mjs && node scripts/sbom.mjs",
     "dist:dir": "electron-builder --linux dir",
-    "verify:package": "npm run dist:dir && node scripts/verify-fuses.mjs"
+    "verify:package": "npm run dist:dir && node scripts/verify-fuses.mjs",
+    "verify:linux-package": "xvfb-run -a node scripts/verify-linux-package.mjs"
   },
   "allowScripts": {
     "electron@41.10.6": true,

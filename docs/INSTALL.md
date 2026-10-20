@@ -2,18 +2,25 @@
 
 ## Install (Linux)
 
+The names below come from `package.json` `version` `0.1.0-alpha`. The deb control file records that version as `0.1.0~alpha`. Nothing in this repository publishes the files. There is no auto-update channel.
+
+The package does not contain the Go bridge or an agent. After the shell starts, `shell-config.json` supplies `bridgeBin` and `agentBin`. Without those paths the window opens and the sidecar does not.
+
 ### AppImage (recommended, no install)
 
 ```bash
-chmod +x zero-bridge-<version>.AppImage
-./zero-bridge-<version>.AppImage
+sha256sum -c SHA256SUMS.txt
+chmod +x zero-bridge-0.1.0-alpha.AppImage
+./zero-bridge-0.1.0-alpha.AppImage
 ```
 
 ### Debian/Ubuntu (.deb)
 
+`dpkg-deb -I` reports `Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libatspi2.0-0, libuuid1, libsecret-1-0` and `Recommends: libappindicator3-1`. The executable is `/opt/zero-bridge/zero-bridge-desktop`.
+
 ```bash
-sudo apt install ./zero-bridge-desktop_<version>_amd64.deb
-# then run from menu or:
+sha256sum -c SHA256SUMS.txt
+sudo apt install ./zero-bridge-desktop_0.1.0-alpha_amd64.deb
 zero-bridge-desktop
 ```
 

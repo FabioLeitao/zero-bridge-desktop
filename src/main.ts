@@ -28,7 +28,7 @@ import { PermissionNotifier, PermissionNotice } from "./notifications.js";
 import { FolderPicker } from "./folderPicker.js";
 import { loginItemSettings } from "./loginItem.js";
 import { loginOverUnix, unixInfo, unixProtocolResponse, UNIX_PAGE_ORIGIN } from "./unixPage.js";
-import { loadShellConfig, type ShellConfig } from "./shellConfig.js";
+import { readShellConfig, type ShellConfig } from "./shellConfig.js";
 import { shellLocale, shellStrings } from "./shellLocale.js";
 
 let mainWindow: BrowserWindow | null = null;
@@ -85,13 +85,6 @@ if (singleInstanceDecision(app.requestSingleInstanceLock()) === "quit") {
 app.on("ready", async () => {
   // Security hard code.
   app.commandLine.appendSwitch("disable-features", "TranslateUI");
-  shellConfig = await loadShellConfig(join(app.getPath("userData"), "shell-config.json"));
-  const strings = shellStrings(shellLocale(process.env, shellConfig.locale));
-  tray.setLabels(strings);
-  notifier.setStrings(strings);
-  // Off until the local config opts in. The call uses the desktop session, not extra privilege.
-  app.setLoginItemSettings(loginItemSettings(shellConfig.openAtLogin));
-
   const boundsFile = join(app.getPath("userData"), "window-bounds.json");
   const saved = await loadWindowBounds(boundsFile);
   mainWindow = new BrowserWindow({
@@ -157,6 +150,18 @@ app.on("ready", async () => {
   });
 
   mainWindow.once("ready-to-show", () => mainWindow?.show());
+
+  const loaded = await readShellConfig(join(app.getPath("userData"), "shell-config.json"));
+  shellConfig = loaded.config;
+  if (loaded.error) {
+    await showSidecarError("crashed", loaded.error);
+    return;
+  }
+  const strings = shellStrings(shellLocale(process.env, shellConfig.locale));
+  tray.setLabels(strings);
+  notifier.setStrings(strings);
+  // Off until the local config opts in. The call uses the desktop session, not extra privilege.
+  app.setLoginItemSettings(loginItemSettings(shellConfig.openAtLogin));
 
   try {
     resolveAllowedBins(process.env, app.isPackaged, shellConfig);

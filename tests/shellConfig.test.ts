@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadShellConfig, parseShellConfig } from "../src/shellConfig.js";
+import { loadShellConfig, parseShellConfig, readShellConfig } from "../src/shellConfig.js";
+import { errorPageHtml } from "../src/errorPage.js";
 import { resolveAllowedBins } from "../src/bins.js";
 
 describe("shell config", () => {
@@ -42,6 +43,23 @@ describe("shell config", () => {
   it("returns an empty config when the file is absent", async () => {
     const cfg = await loadShellConfig(join(tmpdir(), "zb-missing-shell-config.json"));
     assert.deepEqual(cfg, {});
+  });
+
+  it("returns a cause for invalid JSON and a rejected key", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "zb-bad-"));
+    const broken = join(dir, "broken.json");
+    writeFileSync(broken, "{");
+    const invalid = await readShellConfig(broken);
+    assert.equal(invalid.config && typeof invalid.error === "string" && invalid.error.length > 0, true);
+    const page = errorPageHtml("crashed", invalid.error!);
+    assert.equal(page.includes(invalid.error!), true);
+    assert.equal(page.includes("<script>"), false);
+
+    const secret = join(dir, "secret.json");
+    writeFileSync(secret, JSON.stringify({ token: "sekret-token" }));
+    const rejected = await readShellConfig(secret);
+    assert.match(rejected.error ?? "", /rejects secrets/);
+    assert.equal(errorPageHtml("crashed", rejected.error!).includes("sekret-token"), false);
   });
 
   it("rejects token, token path, and authorization", () => {

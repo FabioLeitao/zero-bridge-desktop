@@ -44,6 +44,15 @@ export function parseShellConfig(text: string): ShellConfig {
   return out;
 }
 
+export async function readShellConfig(path: string): Promise<{ config: ShellConfig; error?: string }> {
+  try {
+    return { config: await loadShellConfig(path) };
+  } catch (err) {
+    const message = err instanceof Error && err.message ? err.message : "shell config failed";
+    return { config: {}, error: message };
+  }
+}
+
 export async function loadShellConfig(path: string): Promise<ShellConfig> {
   try {
     return parseShellConfig(await readFile(path, "utf8"));

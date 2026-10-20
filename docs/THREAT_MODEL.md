@@ -64,7 +64,7 @@ A rejected call is counted in the main process as `ipc rejected channel=<name> r
 
 `loadURL` does not emit `will-navigate`. The shell calls it for the sidecar origin after login, and for a `data:` error page. The error page HTML is escaped (`src/errorPage.ts`).
 
-Packaging sets the seven Electron fuses in `package.json` `build.electronFuses`, mirrored by `src/electron.fuses.ts`. A test compares the two. Fuses apply to the packaged app, not to `npx electron` during development.
+Packaging sets eight Electron fuses in `package.json` `build.electronFuses`, mirrored by `src/electron.fuses.ts`. `loadBrowserProcessSpecificV8Snapshot` stays off because this package does not ship `browser_v8_context_snapshot.bin`. A unit test locks the set the shell issue requires and compares the source object with `package.json`. `npm run verify:package` builds `dist/packages/linux-unpacked/zero-bridge` and compares that binary's fuse wire with `src/electron.fuses.ts`. It is not part of `npm run check`. Fuses apply to the packaged app, not to `npx electron` during development.
 
 No protocol handler is registered. `zero-bridge://` stays off.
 
@@ -124,7 +124,7 @@ Manual mutants (one inverted condition, then `git checkout --` the file) all fai
 | #3 IPC | `40ee2a1`, `9ac5adc`, `21a8d8e`, `04f931e`, `fa1f406` | a script in the main frame is still that sender |
 | #4 token | `2f15118` | |
 | #5 sidecar | `93056c9`, `7722495`, `c02f4f9`, `2fc9e3b` | |
-| #6 shell | `278de5d`, `fa1f406` | fuses not checked on a built package |
+| #6 shell | `278de5d`, `fa1f406` | macOS and Windows packages are not built |
 | #7 workspace | `b06c125`, `21a8d8e`, `d430374`, `d21d6ee` | |
 | #8 tray | `2f7aa7a`, `38eac54` | |
 | #9 supply | `18a7adf`, `ded6f60` | signed auto-update is a design note only |
@@ -134,7 +134,7 @@ Manual mutants (one inverted condition, then `git checkout --` the file) all fai
 ## Still open
 
 1. A script in the main frame is a trusted sender. Payload rules and the sanitizer bound it; they do not remove that trust.
-2. Fuse values are locked in source. They were not applied to a packaged binary here.
+2. The Linux unpacked fuse wire is checked by `npm run verify:package`. macOS and Windows packages are not built.
 3. Signed auto-update is described in `docs/AUTO_UPDATE.md` and is not implemented. No macOS or Windows package.
 4. The unix page is forwarded by the main process. Electron's `protocol.handle` itself is not covered by the unit test.
 5. The sidecar is not restarted after a crash.

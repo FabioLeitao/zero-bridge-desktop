@@ -64,7 +64,7 @@ A janela define `contextIsolation`, `sandbox` e `nodeIntegration: false`. Arquiv
 
 `loadURL` não emite `will-navigate`. O shell chama isso para a origem do sidecar depois do login, e para uma página de erro `data:`. O HTML do erro é escapado (`src/errorPage.ts`).
 
-O pacote aplica os sete fuses do Electron em `package.json` `build.electronFuses`, espelhados por `src/electron.fuses.ts`. Um teste compara os dois. Os fuses valem para o app empacotado, não para `npx electron` no desenvolvimento.
+O pacote aplica oito fuses do Electron em `package.json` `build.electronFuses`, espelhados por `src/electron.fuses.ts`. `loadBrowserProcessSpecificV8Snapshot` fica desligado porque este pacote não inclui `browser_v8_context_snapshot.bin`. Um teste unitário trava o conjunto que a issue do shell exige e compara o objeto da fonte com `package.json`. `npm run verify:package` gera `dist/packages/linux-unpacked/zero-bridge` e compara o fuse wire desse binário com `src/electron.fuses.ts`. Esse comando não entra em `npm run check`. Os fuses valem para o app empacotado, não para `npx electron` no desenvolvimento.
 
 Nenhum handler de protocolo está registrado. `zero-bridge://` continua desligado.
 
@@ -124,7 +124,7 @@ Mutantes manuais (uma condição invertida, depois `git checkout --` no arquivo)
 | #3 IPC | `40ee2a1`, `9ac5adc`, `21a8d8e`, `04f931e`, `fa1f406` | um script no frame principal continua sendo esse remetente |
 | #4 token | `2f15118` | |
 | #5 sidecar | `93056c9`, `7722495`, `c02f4f9`, `2fc9e3b` | |
-| #6 shell | `278de5d`, `fa1f406` | fuses não conferidos num pacote gerado |
+| #6 shell | `278de5d`, `fa1f406` | pacotes macOS e Windows não são gerados |
 | #7 pasta | `b06c125`, `21a8d8e`, `d430374`, `d21d6ee` | |
 | #8 bandeja | `2f7aa7a`, `38eac54` | |
 | #9 suprimento | `18a7adf`, `ded6f60` | auto-update assinado é só nota de desenho |
@@ -134,7 +134,7 @@ Mutantes manuais (uma condição invertida, depois `git checkout --` no arquivo)
 ## Ainda aberto
 
 1. Um script no frame principal é um remetente confiável. As regras de payload e a limpeza limitam isso; não tiram essa confiança.
-2. Os valores dos fuses estão travados no código. Não foram aplicados a um binário empacotado aqui.
+2. O fuse wire do diretório Linux desempacotado é conferido por `npm run verify:package`. Pacotes macOS e Windows não são gerados.
 3. O auto-update assinado está descrito em `docs/AUTO_UPDATE.pt_BR.md` e não está implementado. Não há pacote macOS nem Windows.
 4. A página unix é encaminhada pelo processo principal. O `protocol.handle` do Electron em si não entra no teste unitário.
 5. O sidecar não é reiniciado depois de um crash.

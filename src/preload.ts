@@ -1,8 +1,10 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { IPC_CHANNELS } from "./types.js";
+import { noticeFromCard } from "./permissionCard.js";
+import { pathsFromDrop } from "./dropPaths.js";
 
 contextBridge.exposeInMainWorld("zb", {
-  launch: (opts: any) => ipcRenderer.invoke(IPC_CHANNELS.LAUNCH, opts),
+  launch: () => ipcRenderer.invoke(IPC_CHANNELS.LAUNCH),
   quit: () => ipcRenderer.send(IPC_CHANNELS.QUIT),
   onState: (cb: (e: any) => void) =>
     ipcRenderer.on(IPC_CHANNELS.STATE, (_evt, payload) => cb(payload)),
@@ -11,18 +13,46 @@ contextBridge.exposeInMainWorld("zb", {
 
   // S23b additions
   // Called by renderer when bridge SSE emits permission_request.
-  permissionRequest: (notice: any) => ipcRenderer.send("zb:permission-request", notice),
+  permissionRequest: (notice: { toolTitle: string; sessionId: string; reqId: string }) =>
+    ipcRenderer.send(IPC_CHANNELS.PERMISSION_REQUEST, notice),
 
   // Pick workspace folder for new session (validated against workspaceRoots).
-  pickWorkspace: () => ipcRenderer.invoke("zb:pick-workspace"),
+  pickWorkspace: () => ipcRenderer.invoke(IPC_CHANNELS.PICK_WORKSPACE),
 
-  // Handle folder drop (renderer validates via main).
-  folderDrop: (paths: string[]) => ipcRenderer.invoke("zb:folder-drop", paths),
-
-  // Fetch workspace roots from bridge /v1/capabilities.
-  fetchWorkspaceRoots: () => ipcRenderer.invoke("zb:fetch-workspace-roots"),
+  // Fetch workspace roots. The bearer token stays in the main process.
+  fetchWorkspaceRoots: () => ipcRenderer.invoke(IPC_CHANNELS.FETCH_WORKSPACE_ROOTS),
 
   // Permission focus event from native notification click.
   onPermissionFocus: (cb: (e: any) => void) =>
-    ipcRenderer.on("zb:permission-focus", (_evt, payload) => cb(payload)),
+    ipcRenderer.on(IPC_CHANNELS.PERMISSION_FOCUS, (_evt, payload) => cb(payload)),
+});
+
+// The page cannot pass an arbitrary path. The isolated preload reads the
+// dropped File and sends that path to the main process.
+window.addEventListener("DOMContentLoaded", () => {
+  document.addEventListener("dragover", (event) => {
+    event.preventDefault();
+  });
+  document.addEventListener("drop", (event) => {
+    event.preventDefault();
+    const files = event.dataTransfer?.files;
+    if (!files || files.length === 0) return;
+    const paths = pathsFromDrop(files, (file) => webUtils.getPathForFile(file as File));
+    if (paths.length === 0) return;
+    void ipcRenderer.invoke(IPC_CHANNELS.FOLDER_DROP, paths);
+  });
+
+  const seen = new Set<string>();
+  const scan = () => {
+    document.querySelectorAll("section.perm").forEach((card) => {
+      const title = card.querySelector("p")?.textContent ?? "";
+      const labelledBy = card.getAttribute("aria-labelledby") ?? "";
+      const notice = noticeFromCard(title, labelledBy);
+      if (!notice || seen.has(notice.reqId)) return;
+      seen.add(notice.reqId);
+      ipcRenderer.send(IPC_CHANNELS.PERMISSION_REQUEST, notice);
+    });
+  };
+  scan();
+  new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
 });

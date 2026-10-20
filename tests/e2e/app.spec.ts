@@ -1,102 +1,107 @@
-import { test, expect, _electron as electron } from '@playwright/test';
-import { join } from 'node:path';
-import { execFileSync } from 'node:child_process';
-import { tmpdir } from 'node:os';
-import { randomBytes } from 'node:crypto';
-import { promises as fs } from 'node:fs';
+import { test, expect, _electron as electron } from "@playwright/test";
+import { execFileSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { resolveBridgeModule } from "../bridgeSource.js";
 
-let electronApp: any = null;
-let window: any = null;
-let bridgeBin = '';
-let agentBin = '';
-let tokenDir = '';
-let tokenPath = '';
-let testPort = 0;
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const electronPathFile = join(repoRoot, "node_modules", "electron", "path.txt");
 
-// Build binaries once before all tests
+let bridgeBin = "";
+let agentBin = "";
+let tokenDir = "";
+
+function electronReady(): boolean {
+  return existsSync(electronPathFile);
+}
+
 test.beforeAll(async () => {
-  const bridgeDir = join(__dirname, '..', '..', 'zero-bridge');
-  const bridgeTmp = join(tmpdir(), `zb-e2e-bridge-${randomBytes(4).toString('hex')}`);
-  const agentTmp = join(tmpdir(), `zb-e2e-agent-${randomBytes(4).toString('hex')}`);
-  bridgeBin = bridgeTmp;
-  agentBin = agentTmp;
-
-  execFileSync('go', ['build', '-o', bridgeTmp, './cmd/zero-bridge'], { cwd: bridgeDir });
-  execFileSync('go', ['build', '-o', agentTmp, './cmd/acpfake'], { cwd: bridgeDir });
-
-  tokenDir = join(tmpdir(), `zb-e2e-${randomBytes(4).toString('hex')}`);
-  await fs.mkdir(tokenDir, { recursive: true, mode: 0o700 });
-  tokenPath = join(tokenDir, 'token.txt');
-  const token = randomBytes(32).toString('hex');
-  await fs.writeFile(tokenPath, token + '\n', { mode: 0o600 });
+  if (!electronReady()) return;
+  const moduleDir = resolveBridgeModule(
+    {
+      env: process.env.ZB_BRIDGE_SRC,
+      nested: join(repoRoot, "zero-bridge", "bridge"),
+      sibling: join(repoRoot, "..", "zero-bridge", "bridge"),
+    },
+    existsSync,
+  );
+  bridgeBin = join(tmpdir(), `zb-e2e-bridge-${randomBytes(4).toString("hex")}`);
+  agentBin = join(tmpdir(), `zb-e2e-agent-${randomBytes(4).toString("hex")}`);
+  execFileSync("go", ["build", "-o", bridgeBin, "./cmd/zero-bridge"], { cwd: moduleDir });
+  execFileSync("go", ["build", "-o", agentBin, "./cmd/acpfake"], { cwd: moduleDir });
+  tokenDir = await mkdtemp(join(tmpdir(), "zb-e2e-"));
 });
 
 test.afterAll(async () => {
-  // Cleanup temp files
-  for (const p of [bridgeBin, agentBin, tokenPath, tokenDir]) {
-    try { await fs.rm(p, { force: true, recursive: true }); } catch {}
+  for (const path of [bridgeBin, agentBin, tokenDir]) {
+    if (path) await rm(path, { force: true, recursive: true });
   }
 });
 
-test('launch app, chat with fake agent, permission card, quit', async () => {
-  // Launch Electron app
-  electronApp = await electron.launch({
-    args: [join(__dirname, '..', 'src', 'main.ts')],
+test.beforeEach(() => {
+  test.skip(!electronReady(), "Electron binary missing. Run npm ci --allow-scripts, then npm run test:e2e.");
+});
+
+async function launchApp(extra: Record<string, string> = {}) {
+  const app = await electron.launch({
+    args: [repoRoot],
+    cwd: repoRoot,
     env: {
       ...process.env,
       ZB_E2E_BRIDGE_BIN: bridgeBin,
       ZB_E2E_AGENT_BIN: agentBin,
-      ZB_E2E_TOKEN_FILE: tokenPath,
-      ZB_E2E_PORT: '0',
+      ZB_E2E_TOKEN_FILE: join(tokenDir, "token.txt"),
+      ZB_E2E_PORT: "0",
+      ZB_FAKE_PERMISSION: "1",
+      ...extra,
     },
   });
+  const window = await app.firstWindow();
+  await window.waitForLoadState("domcontentloaded");
+  await expect(window.locator("h1")).toHaveText("zero-bridge", { timeout: 30000 });
+  return { app, window };
+}
 
-  window = await electronApp.firstWindow();
-  await window.waitForLoadState('domcontentloaded');
+test("loads the bridge UI from the sidecar", async () => {
+  const { app, window } = await launchApp();
+  await expect(window.locator("#new-session")).toBeVisible();
+  await app.close();
+});
 
-  // Wait for sidecar to start and UI to load
-  await expect(window.locator('h1, [data-testid="app-title"]')).toBeVisible({ timeout: 30000 });
+test("shows a permission card from the fake agent", async () => {
+  const { app, window } = await launchApp();
+  await window.locator("#new-session").click();
+  await window.locator("#text").fill("hello from e2e");
+  await window.locator("#send").click();
+  await expect(window.locator("section.perm")).toBeVisible({ timeout: 20000 });
+  await app.close();
+});
 
-  // Check that the UI shows the session list or new session button
-  const newSessionBtn = window.locator('button:has-text("Nova sessão"), button:has-text("New session")');
-  await expect(newSessionBtn).toBeVisible({ timeout: 10000 });
-
-  // Click new session
-  await newSessionBtn.click();
-
-  // Wait for workspace picker or direct load
-  const workspaceInput = window.locator('input[type="text"][placeholder*="workspace" i], input[placeholder*="pasta" i]');
-  if (await workspaceInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-    // If there's a workspace picker, we'd need to handle it
-    // For now, just verify the UI loads
-  }
-
-  // Send a message in the chat
-  const chatInput = window.locator('textarea[placeholder*="message" i], textarea[placeholder*="mensagem" i], textarea[data-testid="chat-input"]');
-  if (await chatInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-    await chatInput.fill('hello from e2e test');
-    await chatInput.press('Enter');
-  }
-
-  // Wait for response (fake agent should respond)
-  await window.waitForTimeout(3000);
-
-  // Quit the app
-  await electronApp.evaluate(async ({ app }: { app: any }) => {
-    app.quit();
+test("records a sanitized notification when the window is hidden", async () => {
+  const noteLog = join(tokenDir, "notes.txt");
+  const { app, window } = await launchApp({ ZB_E2E_NOTE_LOG: noteLog });
+  await window.locator("#new-session").click();
+  await window.locator("#text").fill("hello from e2e");
+  await app.evaluate(async ({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.hide();
   });
-
-  await electronApp.close();
-  electronApp = null;
+  await window.locator("#send").click();
+  await expect.poll(async () => {
+    try {
+      return await readFile(noteLog, "utf8");
+    } catch {
+      return "";
+    }
+  }, { timeout: 20000 }).toContain("write");
+  const body = await readFile(noteLog, "utf8");
+  assertNoMarkup(body);
+  await app.close();
 });
 
-test('permission card flow', async () => {
-  // This test would trigger a permission request from the agent
-  // and verify the native notification and card behavior
-  // Requires a fake agent that emits permission_request
-  test.skip(true, 'requires fake agent with permission emission');
-});
-
-test('native notification when window hidden', async () => {
-  test.skip(true, 'requires Electron notification testing setup');
-});
+function assertNoMarkup(body: string) {
+  if (/[<>]/.test(body)) throw new Error("notification body kept markup");
+}

@@ -1,23 +1,76 @@
-import { app, BrowserWindow, ipcMain, session, dialog } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, protocol, session, Tray } from "electron";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { SidecarController } from "./sidecar.js";
-import { sidecarOrigin, isLoopbackHost, sameOrigin } from "./origin.js";
-import { IPC_CHANNELS } from "./types.js";
+import { SidecarController, SidecarStartError } from "./sidecar.js";
+import { ephemeralPort } from "./listenPort.js";
+import { errorPageHtml } from "./errorPage.js";
+import { singleInstanceDecision } from "./singleInstance.js";
+import { loginSession } from "./sessionLogin.js";
+import { loadWindowBounds, saveWindowBounds } from "./windowBounds.js";
+import { IPC_CHANNELS, SidecarState } from "./types.js";
+import { IpcRejected, acceptIncoming, SenderRef } from "./ipcGuard.js";
+import { ipcLog } from "./ipcLog.js";
+import { resolveAllowedBins } from "./bins.js";
+import { defaultTokenDir } from "./tokenDir.js";
+import { fetchWorkspaceRoots } from "./workspaceRoots.js";
+import { approvedWorkspace } from "./workspaceLaunch.js";
+import { testHooks } from "./testEnv.js";
+import { rendererLaunchView } from "./launchView.js";
+import {
+  denyPagePermission,
+  denyPermissionCheck,
+  navigationDecision,
+  windowOpenDecision,
+  withShellCsp,
+} from "./shellPolicy.js";
 import { TrayController } from "./tray.js";
 import { PermissionNotifier, PermissionNotice } from "./notifications.js";
 import { FolderPicker } from "./folderPicker.js";
+import { loginItemSettings } from "./loginItem.js";
+import { loginOverUnix, unixInfo, unixProtocolResponse, UNIX_PAGE_ORIGIN } from "./unixPage.js";
+import { readShellConfig, type ShellConfig } from "./shellConfig.js";
+import { shellLocale, shellStrings } from "./shellLocale.js";
 
 let mainWindow: BrowserWindow | null = null;
 const controller = new SidecarController();
-const tray = new TrayController(join(import.meta.dirname, "..", "assets", "icon.png"));
-const notifier = new PermissionNotifier();
+function trayIcon(): string {
+  const candidates = [
+    join(import.meta.dirname, "..", "assets", "icon.png"),
+    join(import.meta.dirname, "..", "..", "assets", "icon.png"),
+  ];
+  return candidates.find((path) => existsSync(path)) ?? candidates[0]!;
+}
+
+const tray = new TrayController(
+  trayIcon(),
+  {
+    create: (iconPath) => new Tray(iconPath),
+    buildMenu: (template) => Menu.buildFromTemplate(template),
+  },
+  () => {
+    void controller.kill().finally(() => app.quit());
+  },
+);
+const notifier = new PermissionNotifier(
+  (opts) => new Notification(opts),
+  () => testHooks(process.env, app.isPackaged).noteLog,
+);
 const folderPicker = new FolderPicker();
 let currentUrl: string | null = null;
 let sidecarTokenPath: string | null = null;
+let sidecarToken: string | null = null;
 let singleInstanceLock = false;
+let shellConfig: ShellConfig = {};
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "zb",
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true },
+  },
+]);
 
 // Single instance lock (second launch focuses first window).
-if (!app.requestSingleInstanceLock()) {
+if (singleInstanceDecision(app.requestSingleInstanceLock()) === "quit") {
   app.quit();
 } else {
   singleInstanceLock = true;
@@ -29,13 +82,15 @@ if (!app.requestSingleInstanceLock()) {
   });
 }
 
-app.on("ready", () => {
+app.on("ready", async () => {
   // Security hard code.
   app.commandLine.appendSwitch("disable-features", "TranslateUI");
-
+  const boundsFile = join(app.getPath("userData"), "window-bounds.json");
+  const saved = await loadWindowBounds(boundsFile);
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    ...(saved ? { x: saved.x, y: saved.y } : {}),
+    width: saved?.width ?? 1200,
+    height: saved?.height ?? 800,
     webPreferences: {
       contextIsolation: true,
       sandbox: true,
@@ -49,99 +104,124 @@ app.on("ready", () => {
   tray.attach(mainWindow);
   notifier.attach(mainWindow);
 
-  // CSP baseline.
+  // CSP and page permissions. The shell denies every permission request.
   const ses = session.defaultSession;
+  ses.setPermissionRequestHandler(denyPagePermission);
+  ses.setPermissionCheckHandler(denyPermissionCheck);
   ses.webRequest.onHeadersReceived((details, cb) => {
-    const headers = { ...details.responseHeaders };
-    cb({ responseHeaders: headers });
+    cb({ responseHeaders: withShellCsp(details.responseHeaders ?? {}) });
   });
 
-  // Block all popups/new windows.
-  mainWindow.webContents.setWindowOpenHandler((details) => ({ action: "deny" }));
+  // Navigation and window.open are denied before startSidecar loads any remote URL.
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: windowOpenDecision() }));
 
-  // Navigation guard: only same origin as the sidecar.
-  mainWindow.webContents.on("will-navigate", (_evt, url) => {
-    if (!currentUrl) return;
-    const dest = new URL(url);
-    const base = new URL(currentUrl);
-    if (!sameOrigin(dest, base)) _evt.preventDefault();
-  });
-
-  // Handle drag & drop folders (validate against workspace roots).
-  mainWindow.webContents.on("will-navigate", (_evt, url) => {
-    // Already handled above.
-  });
+  const guardNavigation = (event: { preventDefault(): void }, url: string) => {
+    if (navigationDecision(currentUrl, url) === "deny") event.preventDefault();
+  };
+  mainWindow.webContents.on("will-navigate", guardNavigation);
+  mainWindow.webContents.on("will-redirect", guardNavigation);
 
   // Drop handler on the window (renderer sends path via IPC).
-  ipcMain.handle("zb:folder-drop", async (_evt, paths: string[]) => {
-    return folderPicker.handleDrop(paths);
+  ipcMain.handle(IPC_CHANNELS.FOLDER_DROP, async (evt, payload) => {
+    try {
+      const paths = trusted(IPC_CHANNELS.FOLDER_DROP, evt, payload) as string[];
+      return folderPicker.handleDrop(paths);
+    } catch (err) {
+      noteRejection(IPC_CHANNELS.FOLDER_DROP, err, payload);
+      return null;
+    }
   });
 
   // Fetch workspace roots from bridge after sidecar is running.
-  ipcMain.handle("zb:fetch-workspace-roots", async () => {
-    if (!currentUrl) return [];
+  ipcMain.handle(IPC_CHANNELS.FETCH_WORKSPACE_ROOTS, async (evt, payload) => {
     try {
-      const res = await fetch(`${currentUrl}v1/capabilities`);
-      const data = await res.json();
-      if (data.workspaceRoots && Array.isArray(data.workspaceRoots)) {
-        folderPicker.setAllowedRoots(data.workspaceRoots);
-        return data.workspaceRoots;
-      }
-    } catch {}
-    return [];
+      trusted(IPC_CHANNELS.FETCH_WORKSPACE_ROOTS, evt, payload);
+    } catch (err) {
+      noteRejection(IPC_CHANNELS.FETCH_WORKSPACE_ROOTS, err, payload);
+      return [];
+    }
+    await refreshWorkspaceRoots();
+    return [...folderPicker.roots()];
+  });
+
+  mainWindow.on("close", () => {
+    const bounds = mainWindow?.getBounds();
+    if (bounds) void saveWindowBounds(boundsFile, bounds);
   });
 
   mainWindow.once("ready-to-show", () => mainWindow?.show());
+
+  const loaded = await readShellConfig(join(app.getPath("userData"), "shell-config.json"));
+  shellConfig = loaded.config;
+  if (loaded.error) {
+    await showSidecarError("crashed", loaded.error);
+    return;
+  }
+  const strings = shellStrings(shellLocale(process.env, shellConfig.locale));
+  tray.setLabels(strings);
+  notifier.setStrings(strings);
+  // Off until the local config opts in. The call uses the desktop session, not extra privilege.
+  app.setLoginItemSettings(loginItemSettings(shellConfig.openAtLogin));
+
+  try {
+    resolveAllowedBins(process.env, app.isPackaged, shellConfig);
+    await startSidecar(await approvedWorkspace(folderPicker.roots(), folderPicker.chosen()));
+  } catch (err) {
+    if (err instanceof SidecarStartError) {
+      await showSidecarError(err.state, "the sidecar did not start");
+    } else if (!process.env.ZB_BRIDGE_BIN && !testHooks(process.env, app.isPackaged).bridgeBin) {
+      await showSidecarError("agent-not-found", "the sidecar binaries are not configured");
+    } else {
+      await showSidecarError("crashed", "the sidecar did not start");
+    }
+  }
 });
 
-ipcMain.handle(IPC_CHANNELS.LAUNCH, async (_evt, opts: any) => {
+ipcMain.handle(IPC_CHANNELS.LAUNCH, async (evt, payload) => {
   try {
-    // E2E test mode: read from env if opts not provided
-    const bridgeBin = String(opts.bridgeBin || process.env.ZB_E2E_BRIDGE_BIN || "");
-    const agentBin = String(opts.agentBin || process.env.ZB_E2E_AGENT_BIN || "");
-    if (!bridgeBin || !agentBin) {
-      return { ok: false, state: "stopped", error: "missing bin paths" };
+    trusted(IPC_CHANNELS.LAUNCH, evt, payload);
+    return startSidecar(await approvedWorkspace(folderPicker.roots(), folderPicker.chosen()));
+  } catch (e) {
+    if (e instanceof IpcRejected) {
+      noteRejection(IPC_CHANNELS.LAUNCH, e, payload);
+      return rendererLaunchView({ ok: false, state: "stopped", error: "rejected" });
     }
-
-    const port = Number(opts.port || process.env.ZB_E2E_PORT || "0") || 8765;
-    const tokenDir = String(opts.tokenDir || process.env.ZB_E2E_TOKEN_FILE || "");
-    const handle = await controller.launch({
-      bridgeBin,
-      agentBin,
-      port,
-      tokenDir: tokenDir ? tokenDir.replace(/token\.txt$/, "") : "",
-      workspaceRoot: opts.workspaceRoot ? String(opts.workspaceRoot) : undefined,
-    });
-
-    sidecarTokenPath = handle.tokenPath;
-    currentUrl = `http://127.0.0.1:${port}/`;
-
-    mainWindow?.webContents.send(IPC_CHANNELS.STATE, {
-      state: handle.state,
-      url: currentUrl,
-    });
-
-    // Fetch workspace roots for folder picker validation.
-    await fetchWorkspaceRoots();
-
-    return { ok: true, state: handle.state, url: currentUrl, tokenPath: sidecarTokenPath };
-  } catch (e: any) {
-    return { ok: false, state: "crashed", error: String(e?.message || e) };
+    if (e instanceof SidecarStartError) {
+      return showSidecarError(e.state, "the sidecar did not start");
+    }
+    return rendererLaunchView({ ok: false, state: "crashed", error: "launch failed" });
   }
 });
 
 // Called by renderer when it sees a permission_request on SSE.
-ipcMain.on("zb:permission-request", (_evt, notice: PermissionNotice) => {
-  notifier.onPermissionRequest(notice);
+ipcMain.on(IPC_CHANNELS.PERMISSION_REQUEST, (evt, payload) => {
+  try {
+    const notice = trusted(IPC_CHANNELS.PERMISSION_REQUEST, evt, payload) as PermissionNotice;
+    notifier.onPermissionRequest(notice);
+  } catch (err) {
+    noteRejection(IPC_CHANNELS.PERMISSION_REQUEST, err, payload);
+  }
 });
 
 // Open folder picker for new session.
-ipcMain.handle("zb:pick-workspace", async () => {
+ipcMain.handle(IPC_CHANNELS.PICK_WORKSPACE, async (evt, payload) => {
+  try {
+    trusted(IPC_CHANNELS.PICK_WORKSPACE, evt, payload);
+  } catch (err) {
+    noteRejection(IPC_CHANNELS.PICK_WORKSPACE, err, payload);
+    return null;
+  }
   if (!mainWindow) return null;
   return folderPicker.pick(mainWindow, dialog);
 });
 
-ipcMain.on(IPC_CHANNELS.QUIT, async () => {
+ipcMain.on(IPC_CHANNELS.QUIT, async (evt, payload) => {
+  try {
+    trusted(IPC_CHANNELS.QUIT, evt, payload);
+  } catch (err) {
+    noteRejection(IPC_CHANNELS.QUIT, err, payload);
+    return;
+  }
   await controller.kill();
   mainWindow?.close();
   app.quit();
@@ -156,13 +236,118 @@ app.on("before-quit", async () => {
   await controller.kill();
 });
 
-async function fetchWorkspaceRoots() {
-  if (!currentUrl) return;
+async function startSidecar(workspaceRoot?: string) {
+  const hooks = testHooks(process.env, app.isPackaged);
+  const bins = resolveAllowedBins(process.env, app.isPackaged, shellConfig);
+  const port = ephemeralPort(hooks.port);
+  const tokenFromEnv = hooks.tokenFile;
+  const tokenDir = tokenFromEnv
+    ? String(tokenFromEnv).replace(/token\.txt$/, "")
+    : defaultTokenDir(app.getPath("userData"));
+  const handle = await controller.launch({
+    bridgeBin: bins.bridgeBin,
+    agentBin: bins.agentBin,
+    port,
+    tokenDir,
+    workspaceRoot,
+    unixSocket: shellConfig.unixSocket,
+    passEnv: shellConfig.passEnv,
+    packaged: app.isPackaged,
+    healthTimeoutMs: 15000,
+  });
+
+  if (handle.state !== "running") {
+    await controller.kill();
+    return showSidecarError(handle.state, "the sidecar did not become healthy");
+  }
+
+  sidecarToken = handle.token;
+  sidecarTokenPath = handle.tokenPath;
+  const unixSocket = shellConfig.unixSocket;
+
   try {
-    const res = await fetch(`${currentUrl}v1/capabilities`);
-    const data = await res.json();
-    if (data.workspaceRoots && Array.isArray(data.workspaceRoots)) {
-      folderPicker.setAllowedRoots(data.workspaceRoots);
+    const cookie = unixSocket
+      ? await loginOverUnix(unixSocket, handle.token)
+      : await loginSession(`http://127.0.0.1:${handle.port}/`, handle.token);
+    currentUrl = unixSocket ? UNIX_PAGE_ORIGIN : `http://127.0.0.1:${handle.port}/`;
+    if (unixSocket) {
+      protocol.handle("zb", async (request) => {
+        const page = await unixProtocolResponse(unixSocket, { method: request.method, url: request.url });
+        const headers = new Headers();
+        for (const [key, value] of Object.entries(page.headers)) {
+          if (value === undefined || key === "transfer-encoding" || key === "connection") continue;
+          headers.set(key, Array.isArray(value) ? value.join(", ") : value);
+        }
+        return new Response(new Uint8Array(page.body), { status: page.status, headers });
+      });
     }
-  } catch {}
+    await session.defaultSession.cookies.set({
+      url: currentUrl,
+      name: cookie.name,
+      value: cookie.value,
+      httpOnly: true,
+      sameSite: "strict",
+      secure: Boolean(unixSocket),
+    });
+    await mainWindow?.loadURL(currentUrl);
+  } catch {
+    await controller.kill();
+    return showSidecarError("crashed", "the sidecar session was not established");
+  }
+
+  mainWindow?.webContents.send(IPC_CHANNELS.STATE, {
+    state: handle.state,
+    url: currentUrl,
+  });
+  await refreshWorkspaceRoots();
+  return rendererLaunchView({ ok: true, state: handle.state, url: currentUrl });
+}
+
+async function showSidecarError(state: SidecarState, detail: string) {
+  currentUrl = null;
+  sidecarToken = null;
+  sidecarTokenPath = null;
+  const html = errorPageHtml(state, detail);
+  await mainWindow?.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  mainWindow?.webContents.send(IPC_CHANNELS.STATE, { state });
+  return rendererLaunchView({ ok: false, state, error: detail });
+}
+
+function noteRejection(channel: string, err: unknown, payload: unknown) {
+  const reason = err instanceof IpcRejected ? err.message : "rejected";
+  ipcLog.record(channel, reason, payload);
+}
+
+function trusted(
+  channel: string,
+  evt: { sender: { id: number }; senderFrame: { routingId: number; url: string } | null },
+  payload: unknown,
+) {
+  if (!mainWindow) throw new IpcRejected(channel, "no window");
+  const sender: SenderRef = {
+    webContentsId: evt.sender.id,
+    frameRoutingId: evt.senderFrame?.routingId ?? -1,
+    frameUrl: evt.senderFrame?.url ?? null,
+  };
+  const expected: SenderRef = {
+    webContentsId: mainWindow.webContents.id,
+    frameRoutingId: mainWindow.webContents.mainFrame.routingId,
+    frameUrl: currentUrl,
+  };
+  return acceptIncoming(channel, sender, expected, payload);
+}
+
+async function refreshWorkspaceRoots() {
+  if (!currentUrl || !sidecarToken) {
+    folderPicker.setAllowedRoots([]);
+    return;
+  }
+  try {
+    const roots = shellConfig.unixSocket
+      ? await unixInfo(shellConfig.unixSocket, sidecarToken)
+      : await fetchWorkspaceRoots(currentUrl, sidecarToken);
+    folderPicker.setAllowedRoots(roots);
+  } catch {
+    folderPicker.setAllowedRoots([]);
+  }
 }

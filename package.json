@@ -11,7 +11,7 @@
     "test": "node --test --import tsx/esm tests/*.test.ts",
     "test:e2e": "playwright test tests/e2e/*.spec.ts",
     "lint": "tsc --noEmit",
-    "audit": "npm audit --package-lock-only --audit-level=moderate",
+    "audit": "node scripts/audit-exception.mjs",
     "check": "npm run lint && npm run audit && npm test",
     "dist": "electron-builder --linux && node scripts/checksums.mjs && node scripts/sbom.mjs",
     "dist:dir": "electron-builder --linux dir",
@@ -76,6 +76,15 @@
         "libuuid1",
         "libsecret-1-0"
       ]
+    },
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "grantFileProtocolExtraPrivileges": false
     },
     "npmRebuild": false,
     "nodeGypRebuild": false,

@@ -34,16 +34,17 @@ import { shellLocale, shellStrings } from "./shellLocale.js";
 
 let mainWindow: BrowserWindow | null = null;
 const controller = new SidecarController();
-function trayIcon(): string {
+function assetIcon(name: string): string {
   const candidates = [
-    join(import.meta.dirname, "..", "assets", "icon.png"),
-    join(import.meta.dirname, "..", "..", "assets", "icon.png"),
+    join(import.meta.dirname, "..", "..", "assets", name),
+    join(import.meta.dirname, "..", "assets", name),
+    join(process.resourcesPath, "assets", name),
   ];
   return candidates.find((path) => existsSync(path)) ?? candidates[0]!;
 }
 
 const tray = new TrayController(
-  trayIcon(),
+  assetIcon("trayTemplate.png"),
   {
     create: (iconPath) => new Tray(iconPath),
     buildMenu: (template) => Menu.buildFromTemplate(template),
@@ -104,6 +105,7 @@ async function createWindow() {
     ...(saved ? { x: saved.x, y: saved.y } : {}),
     width: saved?.width ?? 1200,
     height: saved?.height ?? 800,
+    icon: assetIcon("icon.png"),
     webPreferences: {
       contextIsolation: true,
       sandbox: true,

@@ -33,6 +33,9 @@ describe("shell policy", () => {
     const headers = withShellCsp({ "X-Test": ["1"] });
     assert.equal(headers["Content-Security-Policy"][0], SHELL_CSP);
     assert.match(SHELL_CSP, /default-src 'self'/);
+    assert.match(SHELL_CSP, /base-uri 'none'/);
+    assert.match(SHELL_CSP, /form-action 'none'/);
+    assert.match(SHELL_CSP, /frame-ancestors 'none'/);
     assert.match(SHELL_CSP, /object-src 'none'/);
     let allowed = true;
     denyPagePermission(null, "media", (value) => {
@@ -49,6 +52,19 @@ describe("shell policy", () => {
     assert.equal(electronFuses.enableNodeCliInspectArguments, false);
     assert.equal(electronFuses.onlyLoadAppFromAsar, true);
     assert.equal(electronFuses.grantFileProtocolExtraPrivileges, false);
+    assert.equal(electronFuses.enableEmbeddedAsarIntegrityValidation, true);
+    assert.equal(electronFuses.loadBrowserProcessSpecificV8Snapshot, false);
+    const issueFuses = {
+      runAsNode: false,
+      enableCookieEncryption: true,
+      enableNodeOptionsEnvironmentVariable: false,
+      enableNodeCliInspectArguments: false,
+      onlyLoadAppFromAsar: true,
+      grantFileProtocolExtraPrivileges: false,
+    };
+    for (const [key, value] of Object.entries(issueFuses)) {
+      assert.equal(electronFuses[key as keyof typeof electronFuses], value, key);
+    }
     const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
     assert.deepEqual(pkg.build.electronFuses, electronFuses);
   });

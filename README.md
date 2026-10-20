@@ -26,7 +26,7 @@ The shell reads the binaries from `ZB_BRIDGE_BIN` and `ZB_AGENT_BIN`. `shell-con
 
 - `contextIsolation`, `sandbox`, and `nodeIntegration: false`.
 - Every IPC channel checks the sender frame and the payload. `zb:launch` does not accept a binary path.
-- The launch token stays in the main process. The token file is `0600` under `userData/tokens` (`0700`). A `chmod` failure aborts the launch.
+- The launch token stays in the main process. The token file is `0600` under `$XDG_RUNTIME_DIR/zero-bridge` (`0700`), or under `<tmpdir>/zero-bridge-<uid>` when that variable is unset. A `chmod` failure aborts the launch. See [docs/INSTALL.md](docs/INSTALL.md).
 - The sidecar port `0` stays ephemeral. Health is `GET /health` with no token. Failure states render an escaped error page.
 - The shell sets a CSP, denies page permission prompts, and denies navigation until the sidecar origin exists.
 - Tray Quit stops the sidecar. Notification text is stripped in the main process.

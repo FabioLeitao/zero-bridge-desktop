@@ -46,9 +46,22 @@ A suíte de ponta a ponta compila `cmd/acpfake` como agente. Esse binário é um
 }
 ```
 
+## Onde o shell guarda os arquivos
+
+No Linux, `app.getPath("userData")` é `$XDG_CONFIG_HOME/zero-bridge-desktop` quando `XDG_CONFIG_HOME` existe, e `~/.config/zero-bridge-desktop` caso contrário. `app.getPath("logs")` é esse diretório mais `logs`. macOS e Windows não são declarados até a desktop #10 ter teste naquele SO.
+
+| O quê | Onde |
+| --- | --- |
+| `shell-config.json`, `window-bounds.json` | `app.getPath("userData")` |
+| `localStorage` da página | o perfil do Chromium nesse mesmo diretório de dados. O shell não escolhe o caminho |
+| `shell.log` | `app.getPath("logs")`. As linhas gravadas passam por `src/redactLog.ts` |
+| Diretório do token e `bridge.sock` | `$XDG_RUNTIME_DIR/zero-bridge` no modo `0700` quando essa variável é um caminho absoluto. Senão, `<tmpdir>/zero-bridge-<uid>` no modo `0700` no POSIX. No Windows fica `<tmpdir>/zero-bridge` |
+
+Sem o caminho de dados do usuário ou o de logs, o shell recusa. Ele não monta um home por conta própria. Antes de usar, faz `lstat` do diretório privado e recusa symlink, outro dono ou modo diferente de `0700`, sem seguir o link. Um `unixSocket` absoluto em `shell-config.json` é o caminho do operador. O socket que o shell alocaria é `bridge.sock` nesse diretório privado. O listen padrão continua a porta loopback efêmera.
+
 ## Token e Segurança
 
-- Um **token por lançamento** é gerado pelo processo principal do Electron e escrito num arquivo `0600` em `userData/tokens/<uuid>/` (`0700`). Se o `chmod` falha, o diretório é apagado e o lançamento aborta. `ZB_E2E_TOKEN_FILE` só troca o diretório nos testes.
+- Um **token por lançamento** é gerado pelo processo principal do Electron e escrito num arquivo `0600` no diretório privado acima, em `<uuid>/` (`0700`). Se o `chmod` falha, o diretório é apagado e o lançamento aborta. `ZB_E2E_TOKEN_FILE` só troca o diretório nos testes.
 - O token vai ao bridge por `--token-file`. Ele não entra em argv, logs, URL nem no objeto devolvido ao renderer. O cookie de sessão é gravado pelo processo principal.
 - O bridge exige: bind apenas loopback, validação Host/Origin, sem CORS, CSP estrito.
 - Notificações nativas para pedidos de permissão mostram **apenas o título da ferramenta** (texto puro, sanitizado). Saída do agente nunca aparece em notificações.

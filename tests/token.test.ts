@@ -6,7 +6,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promises as fs } from "node:fs";
 import { SidecarController, SidecarSpawn } from "../src/sidecar.js";
-import { defaultTokenDir } from "../src/tokenDir.js";
 import { rendererLaunchView } from "../src/launchView.js";
 
 class FakeChild extends EventEmitter {
@@ -32,10 +31,6 @@ describe("token handling", () => {
     assert.equal(Object.hasOwn(view, "tokenPath"), false);
     assert.equal(Object.hasOwn(view, "token"), false);
     assert.equal(JSON.stringify(view).includes("super-secret-token-value"), false);
-  });
-
-  it("defaults the token directory under userData", () => {
-    assert.equal(defaultTokenDir("/home/me/.config/zero-bridge"), "/home/me/.config/zero-bridge/tokens");
   });
 
   it("reads argv and logs and does not find the token", async () => {

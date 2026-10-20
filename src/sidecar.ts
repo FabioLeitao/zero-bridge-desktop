@@ -9,6 +9,7 @@ import { SidecarState } from "./types.js";
 import { childEnv } from "./childEnv.js";
 import { agentArgsForLaunch } from "./shellConfig.js";
 import { listenAddress, unixHealthRequest } from "./listenAddress.js";
+import { PRIVATE_DIR_MODE, claimPrivateDir } from "./paths.js";
 
 export interface SidecarOptions {
   bridgeBin: string;
@@ -138,9 +139,12 @@ export class SidecarController {
     const port = !opts.unixSocket && opts.port === 0 ? await this.findFreePort() : opts.port;
     const listen = listenAddress({ port, unixSocket: opts.unixSocket });
 
+    const uid = process.getuid?.();
+    if (typeof uid !== "number") throw new Error("uid required");
+    await claimPrivateDir(opts.tokenDir, uid);
     const dir = join(opts.tokenDir, randomUUID());
-    await fs.mkdir(dir, { recursive: true, mode: 0o700 });
-    await this.files.chmod(dir, 0o700);
+    await fs.mkdir(dir, { recursive: true, mode: PRIVATE_DIR_MODE });
+    await this.files.chmod(dir, PRIVATE_DIR_MODE);
 
     const token = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
     const tokenPath = join(dir, "token.txt");

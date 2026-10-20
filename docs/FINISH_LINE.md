@@ -2,9 +2,11 @@
 
 **Português (Brasil):** [FINISH_LINE.pt_BR.md](FINISH_LINE.pt_BR.md)
 
-Exit check for [FabioLeitao/zero-bridge#57](https://github.com/FabioLeitao/zero-bridge/issues/57). Nothing in this table is marked ready. A row stays open until a commit, a test, or a doc proves the whole bullet. macOS and Windows stay on [desktop #10](https://github.com/FabioLeitao/zero-bridge-desktop/issues/10) and count only after a test on that operating system.
+Exit check for [FabioLeitao/zero-bridge#57](https://github.com/FabioLeitao/zero-bridge/issues/57). The rows are product checks. They do not name a UI toolkit. Nothing in this table is marked ready. A row stays open until a commit, a test, or a doc proves the whole bullet. macOS and Windows stay on [desktop #10](https://github.com/FabioLeitao/zero-bridge-desktop/issues/10) and count only after a test on that operating system.
 
-Related: [README.md](../README.md) ([pt-BR](../README.pt_BR.md)), [INSTALL.md](INSTALL.md) ([pt-BR](INSTALL.pt_BR.md)), [THREAT_MODEL.md](THREAT_MODEL.md) ([pt-BR](THREAT_MODEL.pt_BR.md)).
+The port contract, including the IPC table, is [PORT_SPEC.md](PORT_SPEC.md) ([pt-BR](PORT_SPEC.pt_BR.md)). [Desktop #18](https://github.com/FabioLeitao/zero-bridge-desktop/issues/18) is the later spike. It does not start on this branch. Electron package flags are not a row here.
+
+Related: [README.md](../README.md) ([pt-BR](../README.pt_BR.md)), [INSTALL.md](INSTALL.md) ([pt-BR](INSTALL.pt_BR.md)), [THREAT_MODEL.md](THREAT_MODEL.md) ([pt-BR](THREAT_MODEL.pt_BR.md)), [AUTO_UPDATE.md](AUTO_UPDATE.md) ([pt-BR](AUTO_UPDATE.pt_BR.md)).
 
 The icon work is [desktop #12](https://github.com/FabioLeitao/zero-bridge-desktop/issues/12). It is not a row of #57 and it is not implemented here.
 
@@ -23,7 +25,7 @@ The icon work is [desktop #12](https://github.com/FabioLeitao/zero-bridge-deskto
 | --- | --- | --- |
 | Linux packages build from a clean checkout and run without a dev toolchain | Same as the install row. No package artifact and no test that the AppImage starts without Node or Go. | Not proven. [desktop #15](https://github.com/FabioLeitao/zero-bridge-desktop/issues/15) |
 | No hard-coded user path; state, config, and logs follow XDG on Linux and the platform convention elsewhere | The shell uses `app.getPath("userData")` for `shell-config.json`, `window-bounds.json`, and `tokens` (`src/main.ts`, `src/tokenDir.ts`). No test asserts that directory. The shell has no default log directory. Bridge state uses `XDG_STATE_HOME` (`bridge/cmd/zero-bridge/main.go`). | Not proven. Bridge half is [#61](https://github.com/FabioLeitao/zero-bridge/issues/61). Shell half is [desktop #16](https://github.com/FabioLeitao/zero-bridge-desktop/issues/16). macOS and Windows are not claimed ([desktop #10](https://github.com/FabioLeitao/zero-bridge-desktop/issues/10)). |
-| Local transport without a TCP port where the OS allows it; Windows named pipe stays a documented refusal | `c866000` and `tests/unixPage.test.ts` log in and read `/` and `/v1/info` from a fake bridge listening on a unix socket. The token is not in the path. `tests/listen.test.ts` still checks the `unix:` argument and loopback TCP. Bridge `ResolveListen` refuses `npipe:` (`bridge/internal/server/listen.go`). | Not proven on a packaged Electron run: `protocol.handle` is wired in `src/main.ts` and is not executed by the unit test. Named pipe stays [#54](https://github.com/FabioLeitao/zero-bridge/issues/54). Bridge socket mode stays in closed [#21](https://github.com/FabioLeitao/zero-bridge/issues/21). |
+| Local transport without a TCP port where the OS allows it; Windows named pipe stays a documented refusal | `c866000` and `tests/unixPage.test.ts` log in and read `/` and `/v1/info` from a fake bridge listening on a unix socket. The token is not in the path. `tests/listen.test.ts` still checks the `unix:` argument and loopback TCP. Bridge `ResolveListen` refuses `npipe:` (`bridge/internal/server/listen.go`). | Not proven as a full host load: the HTTP over the socket is tested, and the call that binds the page to that socket is not executed by the unit test. Named pipe stays [#54](https://github.com/FabioLeitao/zero-bridge/issues/54). Bridge socket mode stays in closed [#21](https://github.com/FabioLeitao/zero-bridge/issues/21). |
 | macOS and Windows | No workflow, no package, no test on those systems. | Not proven. [desktop #10](https://github.com/FabioLeitao/zero-bridge-desktop/issues/10) |
 
 ## Agnostic

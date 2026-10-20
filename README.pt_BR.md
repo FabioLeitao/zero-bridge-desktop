@@ -29,7 +29,7 @@ O shell lê os binários de `ZB_BRIDGE_BIN` e `ZB_AGENT_BIN`. `shell-config.json
 - O shell define CSP, nega permissão pedida pela página e nega navegação enquanto a origem do sidecar não existe.
 - Sair pela bandeja encerra o sidecar. O texto da notificação é limpo no processo principal.
 
-A exceção de auditoria do `sprintf-js` está em [docs/AUDIT_EXCEPTION.pt_BR.md](docs/AUDIT_EXCEPTION.pt_BR.md). O modelo de ameaças está em [docs/THREAT_MODEL.pt_BR.md](docs/THREAT_MODEL.pt_BR.md). A tabela da linha de chegada está em [docs/FINISH_LINE.pt_BR.md](docs/FINISH_LINE.pt_BR.md).
+A exceção de auditoria do `sprintf-js` está em [docs/AUDIT_EXCEPTION.pt_BR.md](docs/AUDIT_EXCEPTION.pt_BR.md). O modelo de ameaças está em [docs/THREAT_MODEL.pt_BR.md](docs/THREAT_MODEL.pt_BR.md). A tabela da linha de chegada está em [docs/FINISH_LINE.pt_BR.md](docs/FINISH_LINE.pt_BR.md). O contrato de porte está em [docs/PORT_SPEC.pt_BR.md](docs/PORT_SPEC.pt_BR.md). A atualização assinada, sem toolkit assumido, está em [docs/AUTO_UPDATE.pt_BR.md](docs/AUTO_UPDATE.pt_BR.md).
 
 ## Testes
 

@@ -23,6 +23,7 @@ import {
   windowOpenDecision,
   withShellCsp,
 } from "./shellPolicy.js";
+import { startHost } from "./startup.js";
 import { TrayController } from "./tray.js";
 import { PermissionNotifier, PermissionNotice } from "./notifications.js";
 import { FolderPicker } from "./folderPicker.js";
@@ -33,16 +34,17 @@ import { shellLocale, shellStrings } from "./shellLocale.js";
 
 let mainWindow: BrowserWindow | null = null;
 const controller = new SidecarController();
-function trayIcon(): string {
+function assetIcon(name: string): string {
   const candidates = [
-    join(import.meta.dirname, "..", "assets", "icon.png"),
-    join(import.meta.dirname, "..", "..", "assets", "icon.png"),
+    join(import.meta.dirname, "..", "..", "assets", name),
+    join(import.meta.dirname, "..", "assets", name),
+    join(process.resourcesPath, "assets", name),
   ];
   return candidates.find((path) => existsSync(path)) ?? candidates[0]!;
 }
 
 const tray = new TrayController(
-  trayIcon(),
+  assetIcon("trayTemplate.png"),
   {
     create: (iconPath) => new Tray(iconPath),
     buildMenu: (template) => Menu.buildFromTemplate(template),
@@ -83,6 +85,18 @@ if (singleInstanceDecision(app.requestSingleInstanceLock()) === "quit") {
 }
 
 app.on("ready", async () => {
+  await startHost({
+    createWindow: () => createWindow(),
+    attachTray: () => {
+      if (!mainWindow) throw new Error("window missing");
+      tray.attach(mainWindow);
+    },
+    startSidecar: () => continueStartup(),
+    log: (line) => console.error(line),
+  });
+});
+
+async function createWindow() {
   // Security hard code.
   app.commandLine.appendSwitch("disable-features", "TranslateUI");
   const boundsFile = join(app.getPath("userData"), "window-bounds.json");
@@ -91,6 +105,7 @@ app.on("ready", async () => {
     ...(saved ? { x: saved.x, y: saved.y } : {}),
     width: saved?.width ?? 1200,
     height: saved?.height ?? 800,
+    icon: assetIcon("icon.png"),
     webPreferences: {
       contextIsolation: true,
       sandbox: true,
@@ -100,8 +115,6 @@ app.on("ready", async () => {
     show: false,
   });
 
-  // Tray attaches after window exists.
-  tray.attach(mainWindow);
   notifier.attach(mainWindow);
 
   // CSP and page permissions. The shell denies every permission request.
@@ -150,7 +163,9 @@ app.on("ready", async () => {
   });
 
   mainWindow.once("ready-to-show", () => mainWindow?.show());
+}
 
+async function continueStartup() {
   const loaded = await readShellConfig(join(app.getPath("userData"), "shell-config.json"));
   shellConfig = loaded.config;
   if (loaded.error) {
@@ -175,7 +190,7 @@ app.on("ready", async () => {
       await showSidecarError("crashed", "the sidecar did not start");
     }
   }
-});
+}
 
 ipcMain.handle(IPC_CHANNELS.LAUNCH, async (evt, payload) => {
   try {

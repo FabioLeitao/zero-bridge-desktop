@@ -63,21 +63,25 @@ export class PermissionNotifier {
 
     const title = sanitizeToolTitle(notice.toolTitle);
     const body = this.strings.permissionBody(title);
-
-    const n = this.notes({
-      title: this.strings.permissionTitle,
-      body,
-      urgency: "critical",
-    });
-
-    n.on("click", () => {
-      this.focusOnPermission(notice);
-      n.close();
-    });
-
-    n.show();
     const noteLog = this.noteLogPath();
     if (noteLog) appendRedactedLog(noteLog, body);
+
+    try {
+      const n = this.notes({
+        title: this.strings.permissionTitle,
+        body,
+        urgency: "critical",
+      });
+
+      n.on("click", () => {
+        this.focusOnPermission(notice);
+        n.close();
+      });
+
+      n.show();
+    } catch (err) {
+      console.error(notificationFailureLine(err));
+    }
   }
 
   private focusOnPermission(notice: PermissionNotice) {
@@ -90,6 +94,12 @@ export class PermissionNotifier {
       sessionId: notice.sessionId,
     });
   }
+}
+
+export function notificationFailureLine(err: unknown): string {
+  const raw = err instanceof Error ? err.message : "unknown";
+  const cleaned = raw.replace(/[A-Za-z0-9+/=_-]{12,}/g, "[redacted]");
+  return `notification failed: ${cleaned}`.slice(0, 180);
 }
 
 export function sanitizeToolTitle(text: string): string {

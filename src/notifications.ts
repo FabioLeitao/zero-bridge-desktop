@@ -29,7 +29,7 @@ export class PermissionNotifier {
       return;
     }
 
-    const title = sanitizeText(notice.toolTitle);
+    const title = this.sanitizeText(notice.toolTitle);
     const body = `Permission requested: ${title}`;
 
     const n = new Notification({

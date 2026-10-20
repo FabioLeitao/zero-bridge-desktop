@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, session, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, session } from "electron";
 import { join } from "node:path";
 import { SidecarController } from "./sidecar.js";
 import { sidecarOrigin, isLoopbackHost, sameOrigin } from "./origin.js";
@@ -138,7 +138,7 @@ ipcMain.on("zb:permission-request", (_evt, notice: PermissionNotice) => {
 // Open folder picker for new session.
 ipcMain.handle("zb:pick-workspace", async () => {
   if (!mainWindow) return null;
-  return folderPicker.pick(mainWindow, dialog);
+  return folderPicker.pick(mainWindow);
 });
 
 ipcMain.on(IPC_CHANNELS.QUIT, async () => {

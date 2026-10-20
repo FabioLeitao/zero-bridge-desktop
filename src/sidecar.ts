@@ -16,6 +16,30 @@ export interface SidecarOptions {
   unixSocket?: string;
   // How long kill() waits between SIGTERM and SIGKILL. Tests pass 0.
   killGraceMs?: number;
+  // How long to wait for GET /health. Zero skips the wait.
+  healthTimeoutMs?: number;
+  // Test double. The default probe fetches the URL and does not send the token.
+  probeHealth?: (url: string) => Promise<boolean>;
+}
+
+export class SidecarStartError extends Error {
+  constructor(readonly state: SidecarState) {
+    super(state);
+    this.name = "SidecarStartError";
+  }
+}
+
+export function classifySidecarFailure(stderr: string): SidecarState {
+  const text = stderr.toLowerCase();
+  if (text.includes("eaddrinuse") || text.includes("address already in use")) return "port-in-use";
+  if (text.includes("token file") || text.includes("token must be at least")) return "bad-token";
+  if (text.includes("agent command") || text.includes("not executable")) return "agent-not-found";
+  return "crashed";
+}
+
+async function defaultHealthProbe(url: string): Promise<boolean> {
+  const res = await fetch(url);
+  return res.ok;
 }
 
 export type SidecarSpawn = (
@@ -70,7 +94,11 @@ export class SidecarController {
     const bridgeBin = resolve(opts.bridgeBin);
     const agentBin = resolve(opts.agentBin);
     await mustExistAndExecutable(bridgeBin);
-    await mustExistAndExecutable(agentBin);
+    try {
+      await mustExistAndExecutable(agentBin);
+    } catch {
+      throw new SidecarStartError("agent-not-found");
+    }
 
     // Resolve ephemeral port if 0
     const port = opts.port === 0 ? await this.findFreePort() : opts.port;
@@ -154,13 +182,32 @@ export class SidecarController {
       // For unit tests we rely on the stdout lines below.
     }, 250);
 
-    // Scan stdout for the line the Bridge prints when the server starts.
+    const stderrChunks: Buffer[] = [];
     proc.stdout?.on("data", () => {
-      if (handle.state === "starting") handle.state = "running";
+      // Stdout is not a health signal. /health is.
     });
-    proc.stderr?.on("data", () => {
-      // Keep for diagnostics only. Never log secrets.
+    proc.stderr?.on("data", (chunk: Buffer | string) => {
+      stderrChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
     });
+
+    const timeout = opts.healthTimeoutMs ?? 5000;
+    const probe = opts.probeHealth ?? defaultHealthProbe;
+    const healthUrl = `http://127.0.0.1:${port}/health`;
+    const deadline = Date.now() + timeout;
+    while (timeout > 0 && Date.now() < deadline && handle.state === "starting") {
+      try {
+        if (await probe(healthUrl)) {
+          handle.state = "running";
+          break;
+        }
+      } catch {
+        // The probe failed. Wait for the next try or the deadline.
+      }
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    if (handle.state === "starting") {
+      handle.state = classifySidecarFailure(Buffer.concat(stderrChunks).toString("utf8"));
+    }
 
     this.handle = handle;
     return handle;

@@ -1,7 +1,9 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, session, Tray } from "electron";
 import { join } from "node:path";
-import { SidecarController } from "./sidecar.js";
-import { IPC_CHANNELS } from "./types.js";
+import { SidecarController, SidecarStartError } from "./sidecar.js";
+import { ephemeralPort } from "./listenPort.js";
+import { errorPageHtml } from "./errorPage.js";
+import { IPC_CHANNELS, SidecarState } from "./types.js";
 import { IpcRejected, acceptIncoming, SenderRef } from "./ipcGuard.js";
 import { resolveAllowedBins } from "./bins.js";
 import { defaultTokenDir } from "./tokenDir.js";
@@ -112,7 +114,7 @@ ipcMain.handle(IPC_CHANNELS.LAUNCH, async (evt, payload) => {
       return rendererLaunchView({ ok: false, state: "stopped", error: "workspace rejected" });
     }
     const bins = resolveAllowedBins(process.env);
-    const port = Number(process.env.ZB_E2E_PORT || "0") || 8765;
+    const port = ephemeralPort(process.env.ZB_E2E_PORT);
     const tokenFromEnv = process.env.ZB_E2E_TOKEN_FILE;
     const tokenDir = tokenFromEnv
       ? String(tokenFromEnv).replace(/token\.txt$/, "")
@@ -125,9 +127,14 @@ ipcMain.handle(IPC_CHANNELS.LAUNCH, async (evt, payload) => {
       workspaceRoot: body.workspaceRoot,
     });
 
+    if (handle.state !== "running") {
+      await controller.kill();
+      return showSidecarError(handle.state, "the sidecar did not become healthy");
+    }
+
     sidecarToken = handle.token;
     sidecarTokenPath = handle.tokenPath;
-    currentUrl = `http://127.0.0.1:${port}/`;
+    currentUrl = `http://127.0.0.1:${handle.port}/`;
 
     mainWindow?.webContents.send(IPC_CHANNELS.STATE, {
       state: handle.state,
@@ -141,6 +148,9 @@ ipcMain.handle(IPC_CHANNELS.LAUNCH, async (evt, payload) => {
   } catch (e) {
     if (e instanceof IpcRejected) {
       return rendererLaunchView({ ok: false, state: "stopped", error: "rejected" });
+    }
+    if (e instanceof SidecarStartError) {
+      return showSidecarError(e.state, "the sidecar did not start");
     }
     return rendererLaunchView({ ok: false, state: "crashed", error: "launch failed" });
   }
@@ -186,6 +196,16 @@ app.on("window-all-closed", async () => {
 app.on("before-quit", async () => {
   await controller.kill();
 });
+
+async function showSidecarError(state: SidecarState, detail: string) {
+  currentUrl = null;
+  sidecarToken = null;
+  sidecarTokenPath = null;
+  const html = errorPageHtml(state, detail);
+  await mainWindow?.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  mainWindow?.webContents.send(IPC_CHANNELS.STATE, { state });
+  return rendererLaunchView({ ok: false, state, error: detail });
+}
 
 function trusted(
   channel: string,

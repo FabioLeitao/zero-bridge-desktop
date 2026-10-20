@@ -17,6 +17,7 @@ describe("SidecarController", async () => {
       agentBin: fakeAgent,
       port: 0,
       tokenDir,
+      healthTimeoutMs: 0,
     });
     // Token path exists.
     assert.equal(typeof handle.tokenPath, "string");
@@ -58,6 +59,8 @@ async function launchFake(child: FakeChild, extra: Record<string, unknown> = {})
     port: 9,
     tokenDir: join(tmpdir(), "zb-fake-" + randomUUID()),
     killGraceMs: 0,
+    healthTimeoutMs: 200,
+    probeHealth: async () => true,
     ...extra,
   });
   return { ctrl, handle, seen };
@@ -89,6 +92,8 @@ describe("SidecarController branches", () => {
       port: 0,
       tokenDir: join(tmpdir(), "zb-fake-" + randomUUID()),
       killGraceMs: 0,
+      healthTimeoutMs: 0,
+      probeHealth: async () => true,
     });
     assert.ok(handle.port > 0);
     assert.equal(seen.args.includes("127.0.0.1:0"), false);
@@ -109,7 +114,7 @@ describe("SidecarController branches", () => {
     await ctrl.kill();
   });
 
-  it("moves to running on stdout and ignores later chunks and stderr", async () => {
+  it("stays running after a healthy probe when stdout and stderr arrive", async () => {
     const child = new FakeChild();
     const { ctrl, handle } = await launchFake(child);
     child.stdout?.emit("data", Buffer.from("up\n"));
@@ -170,7 +175,7 @@ describe("SidecarController branches", () => {
     child.stdout = null;
     child.stderr = null;
     const { ctrl, handle } = await launchFake(child);
-    assert.equal(handle.state, "starting");
+    assert.equal(handle.state, "running");
     await ctrl.kill();
   });
 });

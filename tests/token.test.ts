@@ -58,6 +58,8 @@ describe("token handling", () => {
         port: 9,
         tokenDir: join(tmpdir(), "zb-token-" + randomUUID()),
         killGraceMs: 0,
+        healthTimeoutMs: 0,
+        probeHealth: async () => true,
       });
       const blob = args.join("\n") + "\n" + logs.join("\n");
       assert.equal(blob.includes(handle.token), false);

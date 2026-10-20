@@ -298,14 +298,17 @@ async function startSidecar(workspaceRoot?: string) {
         return new Response(new Uint8Array(page.body), { status: page.status, headers });
       });
     }
-    await session.defaultSession.cookies.set({
-      url: currentUrl,
-      name: cookie.name,
-      value: cookie.value,
-      httpOnly: true,
-      sameSite: "strict",
-      secure: Boolean(unixSocket),
-    });
+    // Chromium will not store a cookie for zb://. The TCP page still uses one.
+    if (!unixSocket) {
+      await session.defaultSession.cookies.set({
+        url: currentUrl,
+        name: cookie.name,
+        value: cookie.value,
+        httpOnly: true,
+        sameSite: "strict",
+        secure: false,
+      });
+    }
     await mainWindow?.loadURL(currentUrl);
   } catch {
     await controller.kill();

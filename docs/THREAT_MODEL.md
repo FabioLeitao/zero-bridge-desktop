@@ -10,7 +10,7 @@ The bridge core stays in `zero-bridge` (`3a442f8` when this was checked). Facts 
 
 ## Assets
 
-- The per-launch token and its `0600` file under `userData/tokens`.
+- The per-launch token and its `0600` file under the private runtime directory (`src/paths.ts`).
 - The process spawned as `--agent-cmd`.
 - Workspace paths the operator exposes to the agent.
 - The window that loads the bridge UI, and native notifications.
@@ -80,7 +80,7 @@ Roots come from `GET /v1/info` with a bearer token (`src/workspaceRoots.ts`). An
 | Tampering | `spawn` gets an argv array. The token is `--token-file`, not an argv value. **Verified:** `tests/token.test.ts` reads the recorded argv. |
 | Information disclosure | Login is `POST /v1/login` on `127.0.0.1` only. The cookie is stored by the main process. **Verified:** `tests/sessionLogin.test.ts`. The unit test does not open Electron. |
 | Denial of service | `/health` is polled with no token. Stdout is not a health signal. stderr is classified as `port-in-use`, `bad-token`, `agent-not-found`, or `crashed`, and the window shows that state. **Verified.** |
-| Elevation | `chmod` `0700` then `0600`. A failure removes the directory and throws. **Verified.** Default directory is `userData/tokens` (`src/tokenDir.ts`). |
+| Elevation | `chmod` `0700` then `0600`. A failure removes the directory and throws. **Verified.** The private directory is `$XDG_RUNTIME_DIR/zero-bridge` or `<tmpdir>/zero-bridge` (`src/paths.ts`). |
 
 The child environment is an allowlist (`src/childEnv.ts`, `tests/childEnv.test.ts`). Stored log lines drop the token, `Authorization`, and `zb_session` (`src/redactLog.ts`). Classification still reads raw stderr in memory. Tray Quit calls `controller.kill` and then `app.quit` (`tests/tray.test.ts`). Start at login is off unless `shell-config.json` sets `openAtLogin` (`tests/loginItem.test.ts`). `before-quit` is async; Electron may exit before that promise finishes. **Assumption.** A unix socket has no TCP listener. The window loads `zb://bridge/` and the main process forwards that origin to the socket. It does not open a TCP proxy.
 

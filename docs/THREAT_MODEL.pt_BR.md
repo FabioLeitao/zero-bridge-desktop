@@ -10,7 +10,7 @@ O núcleo do bridge continua em `zero-bridge` (`3a442f8` quando isto foi conferi
 
 ## Ativos
 
-- O token de cada lançamento e o arquivo `0600` em `userData/tokens`.
+- O token de cada lançamento e o arquivo `0600` no diretório privado de runtime (`src/paths.ts`).
 - O processo iniciado como `--agent-cmd`.
 - As pastas que o operador expõe ao agente.
 - A janela que carrega a UI do bridge e as notificações nativas.
@@ -80,7 +80,7 @@ As raízes vêm de `GET /v1/info` com bearer (`src/workspaceRoots.ts`). Lista va
 | Tampering | `spawn` recebe um array de argv. O token vai em `--token-file`, não como valor de argv. **Verificado:** `tests/token.test.ts` lê o argv gravado. |
 | Vazamento | O login é `POST /v1/login` só em `127.0.0.1`. O cookie é gravado pelo processo principal. **Verificado:** `tests/sessionLogin.test.ts`. O teste unitário não abre o Electron. |
 | Negação de serviço | `/health` é consultado sem token. Stdout não é sinal de saúde. O stderr vira `port-in-use`, `bad-token`, `agent-not-found` ou `crashed`, e a janela mostra esse estado. **Verificado.** |
-| Elevação | `chmod` `0700` e depois `0600`. Falha apaga o diretório e lança erro. **Verificado.** O diretório padrão é `userData/tokens` (`src/tokenDir.ts`). |
+| Elevação | `chmod` `0700` e depois `0600`. Falha apaga o diretório e lança erro. **Verificado.** O diretório privado é `$XDG_RUNTIME_DIR/zero-bridge` ou `<tmpdir>/zero-bridge` (`src/paths.ts`). |
 
 O ambiente do filho é uma allowlist (`src/childEnv.ts`, `tests/childEnv.test.ts`). Linhas gravadas em log perdem o token, `Authorization` e `zb_session` (`src/redactLog.ts`). A classificação ainda lê o stderr cru em memória. Sair pela bandeja chama `controller.kill` e depois `app.quit` (`tests/tray.test.ts`). Iniciar com o login fica desligado salvo `openAtLogin` em `shell-config.json` (`tests/loginItem.test.ts`). `before-quit` é async; o Electron pode sair antes dessa promise. **Suposição.** Um unix socket não tem listener TCP. A janela carrega `zb://bridge/` e o processo principal encaminha essa origem para o socket. Não abre um proxy TCP.
 

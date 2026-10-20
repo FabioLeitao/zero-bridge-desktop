@@ -3,6 +3,8 @@
 // Nothing from agent output beyond that.
 // The Electron Notification constructor is injected so tests do not load electron.
 
+import { IPC_CHANNELS } from "./types.js";
+
 export interface NoticeWindow {
   isVisible(): boolean;
   isFocused(): boolean;
@@ -49,7 +51,7 @@ export class PermissionNotifier {
       return;
     }
 
-    const title = this.sanitizeText(notice.toolTitle);
+    const title = sanitizeToolTitle(notice.toolTitle);
     const body = `Permission requested: ${title}`;
 
     const n = this.notes({
@@ -71,14 +73,15 @@ export class PermissionNotifier {
     this.mainWindow.show();
     this.mainWindow.focus();
     // Tell the renderer to scroll to the card.
-    this.mainWindow.webContents.send("zb:permission-focus", {
+    this.mainWindow.webContents.send(IPC_CHANNELS.PERMISSION_FOCUS, {
       reqId: notice.reqId,
       sessionId: notice.sessionId,
     });
   }
+}
 
-  private sanitizeText(text: string): string {
-    // Strip anything that could carry markup or script.
-    return String(text ?? "").replace(/[<>&"']/g, "");
-  }
+export function sanitizeToolTitle(text: string): string {
+  return String(text ?? "")
+    .replace(/[<>&"'\r\n]/g, "")
+    .slice(0, 80);
 }

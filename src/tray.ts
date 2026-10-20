@@ -1,5 +1,3 @@
-import { IPC_CHANNELS } from "./types.js";
-
 export interface TrayWindow {
   isVisible(): boolean;
   isFocused(): boolean;
@@ -36,6 +34,7 @@ export class TrayController {
   constructor(
     private iconPath: string,
     private backend: TrayBackend | null = null,
+    private onQuit: () => void = () => {},
   ) {}
 
   attach(window: TrayWindow) {
@@ -79,9 +78,7 @@ export class TrayController {
       { type: "separator" },
       {
         label: "Quit",
-        click: () => {
-          this.mainWindow?.webContents.send(IPC_CHANNELS.QUIT);
-        },
+        click: () => this.onQuit(),
       },
     ]);
   }

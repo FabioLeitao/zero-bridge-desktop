@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { SidecarController, SidecarStartError } from "./sidecar.js";
 import { ephemeralPort } from "./listenPort.js";
 import { errorPageHtml } from "./errorPage.js";
+import { singleInstanceDecision } from "./singleInstance.js";
+import { loadWindowBounds, saveWindowBounds } from "./windowBounds.js";
 import { IPC_CHANNELS, SidecarState } from "./types.js";
 import { IpcRejected, acceptIncoming, SenderRef } from "./ipcGuard.js";
 import { resolveAllowedBins } from "./bins.js";
@@ -22,10 +24,16 @@ import { FolderPicker } from "./folderPicker.js";
 
 let mainWindow: BrowserWindow | null = null;
 const controller = new SidecarController();
-const tray = new TrayController(join(import.meta.dirname, "..", "assets", "icon.png"), {
-  create: (iconPath) => new Tray(iconPath),
-  buildMenu: (template) => Menu.buildFromTemplate(template),
-});
+const tray = new TrayController(
+  join(import.meta.dirname, "..", "assets", "icon.png"),
+  {
+    create: (iconPath) => new Tray(iconPath),
+    buildMenu: (template) => Menu.buildFromTemplate(template),
+  },
+  () => {
+    void controller.kill().finally(() => app.quit());
+  },
+);
 const notifier = new PermissionNotifier((opts) => new Notification(opts));
 const folderPicker = new FolderPicker();
 let currentUrl: string | null = null;
@@ -34,7 +42,7 @@ let sidecarToken: string | null = null;
 let singleInstanceLock = false;
 
 // Single instance lock (second launch focuses first window).
-if (!app.requestSingleInstanceLock()) {
+if (singleInstanceDecision(app.requestSingleInstanceLock()) === "quit") {
   app.quit();
 } else {
   singleInstanceLock = true;
@@ -46,13 +54,16 @@ if (!app.requestSingleInstanceLock()) {
   });
 }
 
-app.on("ready", () => {
+app.on("ready", async () => {
   // Security hard code.
   app.commandLine.appendSwitch("disable-features", "TranslateUI");
 
+  const boundsFile = join(app.getPath("userData"), "window-bounds.json");
+  const saved = await loadWindowBounds(boundsFile);
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    ...(saved ? { x: saved.x, y: saved.y } : {}),
+    width: saved?.width ?? 1200,
+    height: saved?.height ?? 800,
     webPreferences: {
       contextIsolation: true,
       sandbox: true,
@@ -102,6 +113,11 @@ app.on("ready", () => {
     }
     await refreshWorkspaceRoots();
     return [...folderPicker.roots()];
+  });
+
+  mainWindow.on("close", () => {
+    const bounds = mainWindow?.getBounds();
+    if (bounds) void saveWindowBounds(boundsFile, bounds);
   });
 
   mainWindow.once("ready-to-show", () => mainWindow?.show());

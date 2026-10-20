@@ -1,30 +1,74 @@
-import { describe, it, mock } from "node:test";
+import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { PermissionNotifier, PermissionNotice } from "../src/notifications.js";
+import { PermissionNotifier } from "../src/notifications.js";
+import { IPC_CHANNELS } from "../src/types.js";
 
 describe("PermissionNotifier", () => {
-  it("sanitizes tool title in notification", () => {
-    const notifier = new PermissionNotifier(() => {
-      throw new Error("notification backend is not used by this test");
+  it("sanitizes the tool title before the notification is shown", () => {
+    const bodies: string[] = [];
+    const notifier = new PermissionNotifier((opts) => {
+      bodies.push(opts.body);
+      return { on() {}, show() {}, close() {} };
     });
-    // Access private sanitizeText via reflection for test.
-    const notice: PermissionNotice = {
-      toolTitle: '<script>alert(1)</script>',
+    notifier.attach({
+      isVisible: () => false,
+      isFocused: () => false,
+      show() {},
+      focus() {},
+      webContents: { send() {} },
+    });
+    notifier.onPermissionRequest({
+      toolTitle: "<script>\nalert(1)</script>" + "x".repeat(200),
       sessionId: "s1",
       reqId: "r1",
-    };
-    // We can't test private method directly, but we verify behavior:
-    // The sanitized title should not contain angle brackets.
-    const sanitized = notice.toolTitle.replace(/[<>&"']/g, "");
-    assert.equal(sanitized, "scriptalert(1)/script");
+    });
+    assert.equal(bodies.length, 1);
+    assert.equal(/[<>&"'\n\r]/.test(bodies[0]!), false);
+    assert.equal(bodies[0]!.length <= "Permission requested: ".length + 80, true);
   });
 
-  it("only shows notification when window hidden", () => {
+  it("skips the notification when the window is focused", () => {
+    let shown = 0;
     const notifier = new PermissionNotifier(() => {
-      throw new Error("notification backend is not used by this test");
+      shown += 1;
+      return { on() {}, show() {}, close() {} };
     });
-    // Test setup would require mocking BrowserWindow and Notification.
-    // This is a structural test placeholder.
-    assert.ok(notifier);
+    notifier.attach({
+      isVisible: () => true,
+      isFocused: () => true,
+      show() {},
+      focus() {},
+      webContents: { send() {} },
+    });
+    notifier.onPermissionRequest({ toolTitle: "read", sessionId: "s", reqId: "r" });
+    assert.equal(shown, 0);
+  });
+
+  it("focuses the window from the notification click", () => {
+    let focused = 0;
+    let channel = "";
+    const notifier = new PermissionNotifier(() => ({
+      on(event, listener) {
+        if (event === "click") listener();
+      },
+      show() {},
+      close() {},
+    }));
+    notifier.attach({
+      isVisible: () => false,
+      isFocused: () => false,
+      show() {},
+      focus() {
+        focused += 1;
+      },
+      webContents: {
+        send(next) {
+          channel = next;
+        },
+      },
+    });
+    notifier.onPermissionRequest({ toolTitle: "read", sessionId: "s", reqId: "r" });
+    assert.equal(focused, 1);
+    assert.equal(channel, IPC_CHANNELS.PERMISSION_FOCUS);
   });
 });

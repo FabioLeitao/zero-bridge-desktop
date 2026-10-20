@@ -23,6 +23,7 @@ import {
   windowOpenDecision,
   withShellCsp,
 } from "./shellPolicy.js";
+import { holdQuit } from "./quitLifecycle.js";
 import { startHost } from "./startup.js";
 import { TrayController } from "./tray.js";
 import { PermissionNotifier, PermissionNotice } from "./notifications.js";
@@ -247,8 +248,12 @@ app.on("window-all-closed", async () => {
   app.quit();
 });
 
-app.on("before-quit", async () => {
-  await controller.kill();
+const quitState = { quitting: false };
+app.on("before-quit", (event) => {
+  holdQuit(event, quitState, {
+    kill: () => controller.kill(),
+    quit: () => app.quit(),
+  });
 });
 
 async function startSidecar(workspaceRoot?: string) {
@@ -298,14 +303,17 @@ async function startSidecar(workspaceRoot?: string) {
         return new Response(new Uint8Array(page.body), { status: page.status, headers });
       });
     }
-    await session.defaultSession.cookies.set({
-      url: currentUrl,
-      name: cookie.name,
-      value: cookie.value,
-      httpOnly: true,
-      sameSite: "strict",
-      secure: Boolean(unixSocket),
-    });
+    // Chromium will not store a cookie for zb://. The TCP page still uses one.
+    if (!unixSocket) {
+      await session.defaultSession.cookies.set({
+        url: currentUrl,
+        name: cookie.name,
+        value: cookie.value,
+        httpOnly: true,
+        sameSite: "strict",
+        secure: false,
+      });
+    }
     await mainWindow?.loadURL(currentUrl);
   } catch {
     await controller.kill();

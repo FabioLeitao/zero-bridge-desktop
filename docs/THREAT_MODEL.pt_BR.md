@@ -82,7 +82,7 @@ As raízes vêm de `GET /v1/info` com bearer (`src/workspaceRoots.ts`). Lista va
 | Negação de serviço | `/health` é consultado sem token. Stdout não é sinal de saúde. O stderr vira `port-in-use`, `bad-token`, `agent-not-found` ou `crashed`, e a janela mostra esse estado. **Verificado.** |
 | Elevação | `chmod` `0700` e depois `0600`. Falha apaga o diretório e lança erro. **Verificado.** O diretório padrão é `userData/tokens` (`src/tokenDir.ts`). |
 
-O ambiente do filho é uma allowlist (`src/childEnv.ts`, `tests/childEnv.test.ts`). Linhas gravadas em log perdem o token, `Authorization` e `zb_session` (`src/redactLog.ts`). A classificação ainda lê o stderr cru em memória. Sair pela bandeja chama `controller.kill` e depois `app.quit` (`tests/tray.test.ts`). Iniciar com o login fica desligado salvo `openAtLogin` em `shell-config.json` (`tests/loginItem.test.ts`). `before-quit` é async; o Electron pode sair antes dessa promise. **Suposição.** Um unix socket não tem listener TCP. A janela carrega `zb://bridge/` e o processo principal encaminha essa origem para o socket. Não abre um proxy TCP.
+O ambiente do filho é uma allowlist (`src/childEnv.ts`, `tests/childEnv.test.ts`). Linhas gravadas em log perdem o token, `Authorization` e `zb_session` (`src/redactLog.ts`). A classificação ainda lê o stderr cru em memória. Sair pela bandeja chama `controller.kill` e depois `app.quit` (`tests/tray.test.ts`). Iniciar com o login fica desligado salvo `openAtLogin` em `shell-config.json` (`tests/loginItem.test.ts`). `before-quit` segura a saída até o `kill` terminar (`src/quitLifecycle.ts`, `tests/quitLifecycle.test.ts`). O diretório do token é apagado antes dessa espera ceder. **Verificado** para `app.close` em `tests/e2e/quit.spec.ts`. Um unix socket não tem listener TCP. A janela carrega `zb://bridge/` e o processo principal encaminha essa origem para o socket. Não abre um proxy TCP.
 
 ### Notificações
 
@@ -138,4 +138,4 @@ Mutantes manuais (uma condição invertida, depois `git checkout --` no arquivo)
 3. O auto-update assinado está descrito em `docs/AUTO_UPDATE.pt_BR.md` e não está implementado. Não há pacote macOS nem Windows.
 4. A página unix é encaminhada pelo processo principal. O `protocol.handle` do Electron em si não entra no teste unitário.
 5. O sidecar não é reiniciado depois de um crash.
-6. `before-quit` pode não esperar o `kill`.
+6. Um pai morto com SIGKILL não para o sidecar. A bridge trata só SIGINT e SIGTERM.

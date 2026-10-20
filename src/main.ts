@@ -5,6 +5,7 @@ import { IPC_CHANNELS } from "./types.js";
 import { IpcRejected, acceptIncoming, SenderRef } from "./ipcGuard.js";
 import { resolveAllowedBins } from "./bins.js";
 import { defaultTokenDir } from "./tokenDir.js";
+import { fetchWorkspaceRoots, pathAllowed } from "./workspaceRoots.js";
 import { rendererLaunchView } from "./launchView.js";
 import {
   denyPagePermission,
@@ -27,6 +28,7 @@ const notifier = new PermissionNotifier((opts) => new Notification(opts));
 const folderPicker = new FolderPicker();
 let currentUrl: string | null = null;
 let sidecarTokenPath: string | null = null;
+let sidecarToken: string | null = null;
 let singleInstanceLock = false;
 
 // Single instance lock (second launch focuses first window).
@@ -96,16 +98,8 @@ app.on("ready", () => {
     } catch {
       return [];
     }
-    if (!currentUrl) return [];
-    try {
-      const res = await fetch(`${currentUrl}v1/capabilities`);
-      const data = await res.json();
-      if (data.workspaceRoots && Array.isArray(data.workspaceRoots)) {
-        folderPicker.setAllowedRoots(data.workspaceRoots);
-        return data.workspaceRoots;
-      }
-    } catch {}
-    return [];
+    await refreshWorkspaceRoots();
+    return [...folderPicker.roots()];
   });
 
   mainWindow.once("ready-to-show", () => mainWindow?.show());
@@ -114,6 +108,9 @@ app.on("ready", () => {
 ipcMain.handle(IPC_CHANNELS.LAUNCH, async (evt, payload) => {
   try {
     const body = trusted(IPC_CHANNELS.LAUNCH, evt, payload) as { workspaceRoot?: string };
+    if (body.workspaceRoot && !(await pathAllowed(folderPicker.roots(), body.workspaceRoot))) {
+      return rendererLaunchView({ ok: false, state: "stopped", error: "workspace rejected" });
+    }
     const bins = resolveAllowedBins(process.env);
     const port = Number(process.env.ZB_E2E_PORT || "0") || 8765;
     const tokenFromEnv = process.env.ZB_E2E_TOKEN_FILE;
@@ -128,6 +125,7 @@ ipcMain.handle(IPC_CHANNELS.LAUNCH, async (evt, payload) => {
       workspaceRoot: body.workspaceRoot,
     });
 
+    sidecarToken = handle.token;
     sidecarTokenPath = handle.tokenPath;
     currentUrl = `http://127.0.0.1:${port}/`;
 
@@ -137,7 +135,7 @@ ipcMain.handle(IPC_CHANNELS.LAUNCH, async (evt, payload) => {
     });
 
     // Fetch workspace roots for folder picker validation.
-    await fetchWorkspaceRoots();
+    await refreshWorkspaceRoots();
 
     return rendererLaunchView({ ok: true, state: handle.state, url: currentUrl });
   } catch (e) {
@@ -206,13 +204,15 @@ function trusted(
   return acceptIncoming(channel, sender, expected, payload);
 }
 
-async function fetchWorkspaceRoots() {
-  if (!currentUrl) return;
+async function refreshWorkspaceRoots() {
+  if (!currentUrl || !sidecarToken) {
+    folderPicker.setAllowedRoots([]);
+    return;
+  }
   try {
-    const res = await fetch(`${currentUrl}v1/capabilities`);
-    const data = await res.json();
-    if (data.workspaceRoots && Array.isArray(data.workspaceRoots)) {
-      folderPicker.setAllowedRoots(data.workspaceRoots);
-    }
-  } catch {}
+    const roots = await fetchWorkspaceRoots(currentUrl, sidecarToken);
+    folderPicker.setAllowedRoots(roots);
+  } catch {
+    folderPicker.setAllowedRoots([]);
+  }
 }

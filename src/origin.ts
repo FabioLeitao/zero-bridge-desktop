@@ -13,6 +13,10 @@ export function parseOrigin(raw: string): URL {
   } catch {
     throw new Error(`unsupported protocol`);
   }
+  if (u.protocol === "zb:") {
+    if (u.hostname !== "bridge") throw new Error("unsupported protocol: zb:");
+    return u;
+  }
   if (u.protocol !== "http:" && u.protocol !== "https:") {
     throw new Error(`unsupported protocol: ${u.protocol}`);
   }

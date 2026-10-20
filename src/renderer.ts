@@ -1,6 +1,6 @@
 // Minimal renderer for smoke tests. The real UI is the bridge web UI loaded from the sidecar.
 type ZB = {
-  launch: (opts: any) => Promise<any>;
+  launch: () => Promise<any>;
   quit: () => void;
   onState: (cb: (e: any) => void) => void;
 };
@@ -9,9 +9,9 @@ declare global {
   interface Window { zb?: ZB; }
 }
 
-export async function launchSidecar(opts: any) {
+export async function launchSidecar() {
   if (!window.zb) throw new Error("ZB preload not ready");
-  const res = await window.zb.launch(opts);
+  const res = await window.zb.launch();
   if (!res.ok) throw new Error(res.error || "launch failed");
   // Navigate to the bridge UI.
   if (res.url) {

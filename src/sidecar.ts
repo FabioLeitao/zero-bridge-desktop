@@ -1,10 +1,13 @@
-import { ChildProcessByStdio, spawn } from "node:child_process";
+import { type ChildProcessByStdio, spawn } from "node:child_process";
 import { promises as fs, constants as fsConst } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:net";
+import { request as httpRequest } from "node:http";
 import { SidecarState } from "./types.js";
+import { childEnv } from "./childEnv.js";
+import { listenAddress, unixHealthRequest } from "./listenAddress.js";
 
 export interface SidecarOptions {
   bridgeBin: string;
@@ -14,7 +17,68 @@ export interface SidecarOptions {
   tokenDir: string;
   // Optional Unix socket path (from S21). If provided, port is ignored.
   unixSocket?: string;
+  // How long kill() waits between SIGTERM and SIGKILL. Tests pass 0.
+  killGraceMs?: number;
+  // How long to wait for GET /health. Zero skips the wait.
+  healthTimeoutMs?: number;
+  // Test double. The default probe fetches the URL and does not send the token.
+  probeHealth?: (url: string) => Promise<boolean>;
+  // Unix health probe. The default uses the socket path and GET /health, with no headers.
+  probeUnix?: (socketPath: string) => Promise<boolean>;
+  // Extra environment names from shell config. Values come from this process.
+  passEnv?: readonly string[];
+  // Packaged apps do not inherit ZB_FAKE_*.
+  packaged?: boolean;
 }
+
+export class SidecarStartError extends Error {
+  constructor(readonly state: SidecarState) {
+    super(state);
+    this.name = "SidecarStartError";
+  }
+}
+
+export function classifySidecarFailure(stderr: string): SidecarState {
+  const text = stderr.toLowerCase();
+  if (text.includes("eaddrinuse") || text.includes("address already in use")) return "port-in-use";
+  if (text.includes("token file") || text.includes("token must be at least")) return "bad-token";
+  if (text.includes("agent command") || text.includes("not executable")) return "agent-not-found";
+  return "crashed";
+}
+
+async function defaultHealthProbe(url: string): Promise<boolean> {
+  const res = await fetch(url);
+  return res.ok;
+}
+
+async function defaultUnixProbe(socketPath: string): Promise<boolean> {
+  const spec = unixHealthRequest(socketPath);
+  return new Promise((resolve) => {
+    const req = httpRequest(
+      { socketPath: spec.socketPath, path: spec.path, method: "GET", headers: spec.headers, timeout: 200 },
+      (res) => {
+        res.resume();
+        resolve(res.statusCode === 200);
+      },
+    );
+    req.on("error", () => resolve(false));
+    req.on("timeout", () => {
+      req.destroy();
+      resolve(false);
+    });
+    req.end();
+  });
+}
+
+export type SidecarSpawn = (
+  command: string,
+  args: readonly string[],
+  options: {
+    env: NodeJS.ProcessEnv;
+    stdio: ["ignore", "pipe", "pipe"];
+    windowsHide: true;
+  },
+) => ChildProcessByStdio<null, any, any>;
 
 export interface SidecarHandle {
   proc: import("node:child_process").ChildProcessByStdio<null, any, any> | null;
@@ -27,8 +91,21 @@ export interface SidecarHandle {
   killed: () => Promise<void>;
 }
 
+export interface TokenFiles {
+  chmod(path: string, mode: number): Promise<void>;
+}
+
+const defaultTokenFiles: TokenFiles = {
+  chmod: (path, mode) => fs.chmod(path, mode),
+};
+
 export class SidecarController {
   private handle: SidecarHandle | null = null;
+
+  constructor(
+    private readonly spawnImpl: SidecarSpawn = spawn,
+    private readonly files: TokenFiles = defaultTokenFiles,
+  ) {}
 
   private async findFreePort(): Promise<number> {
     return new Promise((resolve, reject) => {
@@ -45,22 +122,34 @@ export class SidecarController {
     const bridgeBin = resolve(opts.bridgeBin);
     const agentBin = resolve(opts.agentBin);
     await mustExistAndExecutable(bridgeBin);
-    await mustExistAndExecutable(agentBin);
+    try {
+      await mustExistAndExecutable(agentBin);
+    } catch {
+      throw new SidecarStartError("agent-not-found");
+    }
 
-    // Resolve ephemeral port if 0
-    const port = opts.port === 0 ? await this.findFreePort() : opts.port;
+    listenAddress({ port: opts.port, unixSocket: opts.unixSocket });
+    // Resolve ephemeral port if 0. A unix socket does not bind a TCP port.
+    const port = !opts.unixSocket && opts.port === 0 ? await this.findFreePort() : opts.port;
+    const listen = listenAddress({ port, unixSocket: opts.unixSocket });
 
     const dir = join(opts.tokenDir, randomUUID());
     await fs.mkdir(dir, { recursive: true, mode: 0o700 });
+    await this.files.chmod(dir, 0o700);
 
     const token = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
     const tokenPath = join(dir, "token.txt");
     await fs.writeFile(tokenPath, token + "\n", { mode: 0o600 });
-    await chmodOwnerOnly(tokenPath);
+    try {
+      await this.files.chmod(tokenPath, 0o600);
+    } catch (err) {
+      await fs.rm(dir, { recursive: true, force: true });
+      throw err;
+    }
 
     const args = [
       "--listen",
-      `127.0.0.1:${port}`,
+      listen,
       "--agent-cmd",
       agentBin,
       "--agent-arg",
@@ -75,8 +164,9 @@ export class SidecarController {
       args.push("--workspace-root", opts.workspaceRoot);
     }
 
-    const env = sanitizeEnv(process.env);
-    const proc = spawn(bridgeBin, args, {
+    const env = childEnv(process.env, { passEnv: opts.passEnv, packaged: opts.packaged });
+    const grace = opts.killGraceMs ?? 500;
+    const proc = this.spawnImpl(bridgeBin, args, {
       env,
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
@@ -93,7 +183,7 @@ export class SidecarController {
         try {
           proc.kill("SIGTERM");
           // Grace period.
-          await new Promise((r) => setTimeout(r, 500));
+          await new Promise((r) => setTimeout(r, grace));
           if (!proc.killed) proc.kill("SIGKILL");
         } finally {
           try {
@@ -122,13 +212,34 @@ export class SidecarController {
       // For unit tests we rely on the stdout lines below.
     }, 250);
 
-    // Scan stdout for the line the Bridge prints when the server starts.
+    const stderrChunks: Buffer[] = [];
     proc.stdout?.on("data", () => {
-      if (handle.state === "starting") handle.state = "running";
+      // Stdout is not a health signal. /health is.
     });
-    proc.stderr?.on("data", () => {
-      // Keep for diagnostics only. Never log secrets.
+    proc.stderr?.on("data", (chunk: Buffer | string) => {
+      stderrChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
     });
+
+    const timeout = opts.healthTimeoutMs ?? 5000;
+    const probe = opts.probeHealth ?? defaultHealthProbe;
+    const probeUnix = opts.probeUnix ?? defaultUnixProbe;
+    const healthUrl = `http://127.0.0.1:${port}/health`;
+    const deadline = Date.now() + timeout;
+    while (timeout > 0 && Date.now() < deadline && handle.state === "starting") {
+      try {
+        const healthy = opts.unixSocket ? await probeUnix(opts.unixSocket) : await probe(healthUrl);
+        if (healthy) {
+          handle.state = "running";
+          break;
+        }
+      } catch {
+        // The probe failed. Wait for the next try or the deadline.
+      }
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    if (handle.state === "starting") {
+      handle.state = classifySidecarFailure(Buffer.concat(stderrChunks).toString("utf8"));
+    }
 
     this.handle = handle;
     return handle;
@@ -154,15 +265,3 @@ async function mustExistAndExecutable(p: string): Promise<void> {
   }
 }
 
-function sanitizeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const out: NodeJS.ProcessEnv = { ...env };
-  // Never forward bridge tokens into the child.
-  delete out.ZERO_BRIDGE_TOKEN;
-  return out;
-}
-
-async function chmodOwnerOnly(p: string): Promise<void> {
-  try {
-    await fs.chmod(p, 0o600);
-  } catch {}
-}

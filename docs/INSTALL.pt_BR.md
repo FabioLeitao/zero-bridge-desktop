@@ -19,14 +19,28 @@ zero-bridge-desktop
 
 ## Como funciona
 
-O app desktop inicia o binário **zero-bridge** (Go) como sidecar em uma porta loopback local (ou Unix socket quando S21 chegar). O bridge spawna o agente ACP (`zero acp` ou `acpfake` para testes). A UI é servida pelo bridge em `http://127.0.0.1:<porta>/`.
+O app desktop inicia o binário **zero-bridge** (Go) como sidecar. O listen padrão é uma porta loopback efêmera. Depois que `GET /health` responde, o shell faz login, grava o cookie `zb_session` e carrega `http://127.0.0.1:<porta>/`. Quando `shell-config.json` define um `unixSocket` absoluto, a bridge não escuta TCP. O shell faz login e carrega a UI por esse socket (`zb://bridge/`) e não abre um proxy TCP. A bridge continua criando o socket no modo `0600`.
 
 ## Token e Segurança
 
-- Um **token por lançamento** é gerado pelo processo principal do Electron e escrito em um arquivo `0600` dentro de um diretório `0700` (`$XDG_RUNTIME_DIR/zb-<uuid>/token.txt` ou `$TMPDIR/zb-<uuid>/token.txt`).
-- O token é passado ao bridge via `--token-file`. Nunca aparece em argv, logs, URL ou no processo renderer.
+- Um **token por lançamento** é gerado pelo processo principal do Electron e escrito num arquivo `0600` em `userData/tokens/<uuid>/` (`0700`). Se o `chmod` falha, o diretório é apagado e o lançamento aborta. `ZB_E2E_TOKEN_FILE` só troca o diretório nos testes.
+- O token vai ao bridge por `--token-file`. Ele não entra em argv, logs, URL nem no objeto devolvido ao renderer. O cookie de sessão é gravado pelo processo principal.
 - O bridge exige: bind apenas loopback, validação Host/Origin, sem CORS, CSP estrito.
 - Notificações nativas para pedidos de permissão mostram **apenas o título da ferramenta** (texto puro, sanitizado). Saída do agente nunca aparece em notificações.
+
+## Testes de ponta a ponta
+
+`npm test` não abre o Electron. Os scripts de instalação estão bloqueados (`.npmrc` `ignore-scripts=true`), então um `npm ci` comum não baixa o binário do Electron.
+
+Para rodar a UI localmente:
+
+```bash
+npm ci --allow-scripts
+npm run build
+npm run test:e2e
+```
+
+A suíte compila `cmd/zero-bridge` e `cmd/acpfake` do módulo Go. Defina `ZB_BRIDGE_SRC` com o diretório desse módulo, ou deixe o bridge em `./zero-bridge` ou `../zero-bridge`. O CI faz isso em `.github/workflows/check.yml` com `npm ci --allow-scripts`.
 
 ## Atualização
 

@@ -1,18 +1,12 @@
-// Electron fuse configuration scaffold for S23a.
-// Fuses will be applied during packaging (S23c). Keep as documentation for now.
+// Fuse values applied by electron-builder from package.json build.electronFuses.
+// They are not flipped on the npm electron binary used for local dev.
 
-export const fuses = {
-  // When packaging, enable:
-  // "ElectronFuse" = true
-  enableSquirrel: false,
-  nodeOptions: "no-deprecation",
+export const electronFuses = {
+  runAsNode: false,
+  enableCookieEncryption: true,
   enableNodeOptionsEnvironmentVariable: false,
   enableNodeCliInspectArguments: false,
-  enableElectronRunAsNode: false,
-  enableSecureSystemAPI: true,
-
-  // Hardening we require
-  disableBlinkFeatures: ["Auxclick", "Translate"],
-  allowFileAccessFromFileUrls: false,
-  allowFileAccessFromFileUrlsInIsolatedWorld: false,
-};
+  enableEmbeddedAsarIntegrityValidation: true,
+  onlyLoadAppFromAsar: true,
+  grantFileProtocolExtraPrivileges: false,
+} as const;

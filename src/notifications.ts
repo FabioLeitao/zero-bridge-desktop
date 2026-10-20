@@ -5,6 +5,7 @@
 
 import { IPC_CHANNELS } from "./types.js";
 import { appendRedactedLog } from "./redactLog.js";
+import { shellStrings, type ShellStrings } from "./shellLocale.js";
 
 export interface NoticeWindow {
   isVisible(): boolean;
@@ -39,7 +40,12 @@ export class PermissionNotifier {
   constructor(
     private readonly notes: NoteFactory,
     private readonly noteLogPath: () => string | undefined = () => undefined,
+    private strings: ShellStrings = shellStrings("en"),
   ) {}
+
+  setStrings(strings: ShellStrings) {
+    this.strings = strings;
+  }
 
   attach(window: NoticeWindow) {
     this.mainWindow = window;
@@ -56,10 +62,10 @@ export class PermissionNotifier {
     }
 
     const title = sanitizeToolTitle(notice.toolTitle);
-    const body = `Permission requested: ${title}`;
+    const body = this.strings.permissionBody(title);
 
     const n = this.notes({
-      title: "zero-bridge permission",
+      title: this.strings.permissionTitle,
       body,
       urgency: "critical",
     });

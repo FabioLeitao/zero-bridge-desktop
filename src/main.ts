@@ -28,6 +28,7 @@ import { PermissionNotifier, PermissionNotice } from "./notifications.js";
 import { FolderPicker } from "./folderPicker.js";
 import { loginItemSettings } from "./loginItem.js";
 import { loadShellConfig, type ShellConfig } from "./shellConfig.js";
+import { shellLocale, shellStrings } from "./shellLocale.js";
 
 let mainWindow: BrowserWindow | null = null;
 const controller = new SidecarController();
@@ -77,6 +78,9 @@ app.on("ready", async () => {
   // Security hard code.
   app.commandLine.appendSwitch("disable-features", "TranslateUI");
   shellConfig = await loadShellConfig(join(app.getPath("userData"), "shell-config.json"));
+  const strings = shellStrings(shellLocale(process.env, shellConfig.locale));
+  tray.setLabels(strings);
+  notifier.setStrings(strings);
   // Off until the local config opts in. The call uses the desktop session, not extra privilege.
   app.setLoginItemSettings(loginItemSettings(shellConfig.openAtLogin));
 

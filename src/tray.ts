@@ -1,3 +1,6 @@
+import type { ShellStrings } from "./shellLocale.js";
+import { shellStrings } from "./shellLocale.js";
+
 export interface TrayWindow {
   isVisible(): boolean;
   isFocused(): boolean;
@@ -35,7 +38,13 @@ export class TrayController {
     private iconPath: string,
     private backend: TrayBackend | null = null,
     private onQuit: () => void = () => {},
+    private labels: ShellStrings = shellStrings("en"),
   ) {}
+
+  setLabels(labels: ShellStrings) {
+    this.labels = labels;
+    if (this.tray) this.tray.setContextMenu(this.buildMenu());
+  }
 
   attach(window: TrayWindow) {
     if (!this.backend) throw new Error("tray backend required");
@@ -72,12 +81,12 @@ export class TrayController {
   private buildMenu() {
     return this.backend!.buildMenu([
       {
-        label: "Show zero-bridge",
+        label: this.labels.show,
         click: () => this.show(),
       },
       { type: "separator" },
       {
-        label: "Quit",
+        label: this.labels.quit,
         click: () => this.onQuit(),
       },
     ]);

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:net";
 import { SidecarState } from "./types.js";
+import { childEnv } from "./childEnv.js";
 
 export interface SidecarOptions {
   bridgeBin: string;
@@ -134,7 +135,7 @@ export class SidecarController {
       args.push("--workspace-root", opts.workspaceRoot);
     }
 
-    const env = sanitizeEnv(process.env);
+    const env = childEnv(process.env);
     const grace = opts.killGraceMs ?? 500;
     const proc = this.spawnImpl(bridgeBin, args, {
       env,
@@ -233,9 +234,3 @@ async function mustExistAndExecutable(p: string): Promise<void> {
   }
 }
 
-function sanitizeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const out: NodeJS.ProcessEnv = { ...env };
-  // Never forward bridge tokens into the child.
-  delete out.ZERO_BRIDGE_TOKEN;
-  return out;
-}

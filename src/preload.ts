@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { IPC_CHANNELS } from "./types.js";
 import { noticeFromCard } from "./permissionCard.js";
+import { pathsFromDrop } from "./dropPaths.js";
 
 contextBridge.exposeInMainWorld("zb", {
   launch: () => ipcRenderer.invoke(IPC_CHANNELS.LAUNCH),
@@ -36,11 +37,7 @@ window.addEventListener("DOMContentLoaded", () => {
     event.preventDefault();
     const files = event.dataTransfer?.files;
     if (!files || files.length === 0) return;
-    const paths: string[] = [];
-    for (let i = 0; i < files.length; i++) {
-      const path = webUtils.getPathForFile(files[i]);
-      if (path) paths.push(path);
-    }
+    const paths = pathsFromDrop(files, (file) => webUtils.getPathForFile(file as File));
     if (paths.length === 0) return;
     void ipcRenderer.invoke(IPC_CHANNELS.FOLDER_DROP, paths);
   });

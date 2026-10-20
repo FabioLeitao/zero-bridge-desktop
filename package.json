@@ -3,6 +3,7 @@
   "version": "0.1.0-alpha",
   "description": "Desktop shell for zero-bridge: Electron sidecar, tray, notifications. Bridge core stays in zero-bridge (Go, stdlib).",
   "license": "MIT",
+  "homepage": "https://github.com/FabioLeitao/zero-bridge-desktop",
   "private": true,
   "type": "module",
   "main": "dist/src/main.js",

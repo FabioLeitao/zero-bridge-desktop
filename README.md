@@ -35,7 +35,7 @@ The lockfile audit exception for `sprintf-js` is [docs/AUDIT_EXCEPTION.md](docs/
 
 ## Tests
 
-`npm test` runs the unit suite (97 tests on 2026-10-20). `npm run check` is lint, the audit exception gate, and that suite.
+`npm test` runs the unit suite (97 tests on 2026-10-20). `npm run check` is lint, the audit exception gate, and that suite. `npm run verify:package` builds an unpacked Linux directory and compares its Electron fuse wire with `src/electron.fuses.ts`. It is not part of `npm run check`.
 
 Coverage from `node --test --experimental-test-coverage --import tsx/esm tests/*.test.ts` on 2026-10-20. The plan-phase baseline had `origin.ts` at 100% lines and `sidecar.ts` at about 97% lines / 63% branches. `main`, `preload`, `renderer`, `folderPicker`, `notifications`, `tray`, and the fuses file were absent from that report.
 
@@ -57,7 +57,7 @@ Coverage from `node --test --experimental-test-coverage --import tsx/esm tests/*
 
 The line goal of 85% holds on those logic modules. `tray.ts` function coverage counts the injected Electron interfaces, which this process never calls.
 
-Not loaded, because they import Electron or the DOM: `src/main.ts`, `src/preload.ts`, `src/renderer.ts`. `npm run dist:dir` was not run: `node_modules/electron` has no binary (`ignore-scripts`), and packaging would download it.
+Not loaded, because they import Electron or the DOM: `src/main.ts`, `src/preload.ts`, `src/renderer.ts`.
 
 The e2e suite is `npm run test:e2e` after `npm ci --ignore-scripts=false`. Without the binary it skips. CI runs it in `.github/workflows/check.yml`.
 
@@ -68,7 +68,7 @@ The e2e suite is `npm run test:e2e` after `npm ci --ignore-scripts=false`. Witho
 | [#3](https://github.com/FabioLeitao/zero-bridge-desktop/issues/3) IPC | `40ee2a1`, `9ac5adc`, `21a8d8e`, `04f931e`, `fa1f406` |
 | [#4](https://github.com/FabioLeitao/zero-bridge-desktop/issues/4) token | `2f15118` |
 | [#5](https://github.com/FabioLeitao/zero-bridge-desktop/issues/5) sidecar | `93056c9`, `7722495`, `c02f4f9`, `2fc9e3b` |
-| [#6](https://github.com/FabioLeitao/zero-bridge-desktop/issues/6) shell | `278de5d`, `fa1f406`. Fuse values are locked in `package.json`; a packaged directory was not built here |
+| [#6](https://github.com/FabioLeitao/zero-bridge-desktop/issues/6) shell | `278de5d`, `fa1f406`. `npm run verify:package` checks the Linux unpacked fuse wire and is not part of `npm run check` |
 | [#7](https://github.com/FabioLeitao/zero-bridge-desktop/issues/7) workspace | `b06c125`, `21a8d8e`, `d430374`, `d21d6ee` |
 | [#8](https://github.com/FabioLeitao/zero-bridge-desktop/issues/8) tray | `2f7aa7a`, `38eac54` |
 | [#9](https://github.com/FabioLeitao/zero-bridge-desktop/issues/9) supply | `18a7adf`. Signed auto-update is a design note in [docs/AUTO_UPDATE.md](docs/AUTO_UPDATE.md) |

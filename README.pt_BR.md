@@ -35,7 +35,7 @@ A exceção de auditoria do `sprintf-js` está em [docs/AUDIT_EXCEPTION.pt_BR.md
 
 ## Testes
 
-`npm test` roda a suíte unitária (97 testes em 2026-10-20). `npm run check` é lint, o gate da exceção de auditoria e essa suíte.
+`npm test` roda a suíte unitária (97 testes em 2026-10-20). `npm run check` é lint, o gate da exceção de auditoria e essa suíte. `npm run verify:package` gera um diretório Linux desempacotado e compara o fuse wire do Electron com `src/electron.fuses.ts`. Esse comando não entra em `npm run check`.
 
 Cobertura de `node --test --experimental-test-coverage --import tsx/esm tests/*.test.ts` em 2026-10-20. Na linha de base do plano, `origin.ts` estava em 100% de linhas e `sidecar.ts` em cerca de 97% de linhas / 63% de ramos. `main`, `preload`, `renderer`, `folderPicker`, `notifications`, `tray` e o arquivo de fuses estavam fora daquele relatório.
 
@@ -57,7 +57,7 @@ Cobertura de `node --test --experimental-test-coverage --import tsx/esm tests/*.
 
 A meta de 85% de linhas vale nesses módulos de lógica. A cobertura de funções de `tray.ts` conta as interfaces injetadas do Electron, que este processo não chama.
 
-Não carregados, porque importam Electron ou o DOM: `src/main.ts`, `src/preload.ts`, `src/renderer.ts`. `npm run dist:dir` não rodou: `node_modules/electron` não tem binário (`ignore-scripts`), e o empacotamento baixaria esse binário.
+Não carregados, porque importam Electron ou o DOM: `src/main.ts`, `src/preload.ts`, `src/renderer.ts`.
 
 O e2e é `npm run test:e2e` depois de `npm ci --ignore-scripts=false`. Sem o binário, os três testes ficam pulados. O CI roda a suíte em `.github/workflows/check.yml`.
 
@@ -68,7 +68,7 @@ O e2e é `npm run test:e2e` depois de `npm ci --ignore-scripts=false`. Sem o bin
 | [#3](https://github.com/FabioLeitao/zero-bridge-desktop/issues/3) IPC | `40ee2a1`, `9ac5adc`, `21a8d8e`, `04f931e`, `fa1f406` |
 | [#4](https://github.com/FabioLeitao/zero-bridge-desktop/issues/4) token | `2f15118` |
 | [#5](https://github.com/FabioLeitao/zero-bridge-desktop/issues/5) sidecar | `93056c9`, `7722495`, `c02f4f9`, `2fc9e3b` |
-| [#6](https://github.com/FabioLeitao/zero-bridge-desktop/issues/6) shell | `278de5d`, `fa1f406`. Os fuses estão travados no `package.json`; o diretório empacotado não foi gerado aqui |
+| [#6](https://github.com/FabioLeitao/zero-bridge-desktop/issues/6) shell | `278de5d`, `fa1f406`. `npm run verify:package` confere o fuse wire do diretório Linux desempacotado e não entra em `npm run check` |
 | [#7](https://github.com/FabioLeitao/zero-bridge-desktop/issues/7) pasta | `b06c125`, `21a8d8e`, `d430374`, `d21d6ee` |
 | [#8](https://github.com/FabioLeitao/zero-bridge-desktop/issues/8) bandeja | `2f7aa7a`, `38eac54` |
 | [#9](https://github.com/FabioLeitao/zero-bridge-desktop/issues/9) suprimento | `18a7adf`. Auto-update assinado é uma nota de desenho em [docs/AUTO_UPDATE.pt_BR.md](docs/AUTO_UPDATE.pt_BR.md) |

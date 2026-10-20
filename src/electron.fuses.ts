@@ -8,5 +8,8 @@ export const electronFuses = {
   enableNodeCliInspectArguments: false,
   enableEmbeddedAsarIntegrityValidation: true,
   onlyLoadAppFromAsar: true,
+  // This package does not ship browser_v8_context_snapshot.bin. Leaving the
+  // fuse on would make the browser process load that missing file.
+  loadBrowserProcessSpecificV8Snapshot: false,
   grantFileProtocolExtraPrivileges: false,
 } as const;

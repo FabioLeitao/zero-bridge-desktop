@@ -9,9 +9,10 @@ declare global {
   interface Window { zb?: ZB; }
 }
 
-export async function launchSidecar(opts: any) {
+export async function launchSidecar(opts?: { workspaceRoot?: string }) {
   if (!window.zb) throw new Error("ZB preload not ready");
-  const res = await window.zb.launch(opts);
+  const payload = opts?.workspaceRoot ? { workspaceRoot: opts.workspaceRoot } : undefined;
+  const res = await window.zb.launch(payload);
   if (!res.ok) throw new Error(res.error || "launch failed");
   // Navigate to the bridge UI.
   if (res.url) {

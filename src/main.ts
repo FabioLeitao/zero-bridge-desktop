@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { SidecarController } from "./sidecar.js";
 import { sidecarOrigin, isLoopbackHost, sameOrigin } from "./origin.js";
 import { IPC_CHANNELS } from "./types.js";
+import { IpcRejected, acceptIncoming, SenderRef } from "./ipcGuard.js";
+import { resolveAllowedBins } from "./bins.js";
 import { TrayController } from "./tray.js";
 import { PermissionNotifier, PermissionNotice } from "./notifications.js";
 import { FolderPicker } from "./folderPicker.js";
@@ -76,12 +78,22 @@ app.on("ready", () => {
   });
 
   // Drop handler on the window (renderer sends path via IPC).
-  ipcMain.handle("zb:folder-drop", async (_evt, paths: string[]) => {
-    return folderPicker.handleDrop(paths);
+  ipcMain.handle(IPC_CHANNELS.FOLDER_DROP, async (evt, payload) => {
+    try {
+      const paths = trusted(IPC_CHANNELS.FOLDER_DROP, evt, payload) as string[];
+      return folderPicker.handleDrop(paths);
+    } catch {
+      return null;
+    }
   });
 
   // Fetch workspace roots from bridge after sidecar is running.
-  ipcMain.handle("zb:fetch-workspace-roots", async () => {
+  ipcMain.handle(IPC_CHANNELS.FETCH_WORKSPACE_ROOTS, async (evt, payload) => {
+    try {
+      trusted(IPC_CHANNELS.FETCH_WORKSPACE_ROOTS, evt, payload);
+    } catch {
+      return [];
+    }
     if (!currentUrl) return [];
     try {
       const res = await fetch(`${currentUrl}v1/capabilities`);
@@ -97,23 +109,18 @@ app.on("ready", () => {
   mainWindow.once("ready-to-show", () => mainWindow?.show());
 });
 
-ipcMain.handle(IPC_CHANNELS.LAUNCH, async (_evt, opts: any) => {
+ipcMain.handle(IPC_CHANNELS.LAUNCH, async (evt, payload) => {
   try {
-    // E2E test mode: read from env if opts not provided
-    const bridgeBin = String(opts.bridgeBin || process.env.ZB_E2E_BRIDGE_BIN || "");
-    const agentBin = String(opts.agentBin || process.env.ZB_E2E_AGENT_BIN || "");
-    if (!bridgeBin || !agentBin) {
-      return { ok: false, state: "stopped", error: "missing bin paths" };
-    }
-
-    const port = Number(opts.port || process.env.ZB_E2E_PORT || "0") || 8765;
-    const tokenDir = String(opts.tokenDir || process.env.ZB_E2E_TOKEN_FILE || "");
+    const body = trusted(IPC_CHANNELS.LAUNCH, evt, payload) as { workspaceRoot?: string };
+    const bins = resolveAllowedBins(process.env);
+    const port = Number(process.env.ZB_E2E_PORT || "0") || 8765;
+    const tokenDir = String(process.env.ZB_E2E_TOKEN_FILE || "");
     const handle = await controller.launch({
-      bridgeBin,
-      agentBin,
+      bridgeBin: bins.bridgeBin,
+      agentBin: bins.agentBin,
       port,
       tokenDir: tokenDir ? tokenDir.replace(/token\.txt$/, "") : "",
-      workspaceRoot: opts.workspaceRoot ? String(opts.workspaceRoot) : undefined,
+      workspaceRoot: body.workspaceRoot,
     });
 
     sidecarTokenPath = handle.tokenPath;
@@ -128,23 +135,39 @@ ipcMain.handle(IPC_CHANNELS.LAUNCH, async (_evt, opts: any) => {
     await fetchWorkspaceRoots();
 
     return { ok: true, state: handle.state, url: currentUrl, tokenPath: sidecarTokenPath };
-  } catch (e: any) {
-    return { ok: false, state: "crashed", error: String(e?.message || e) };
+  } catch (e) {
+    if (e instanceof IpcRejected) return { ok: false, state: "stopped", error: "rejected" };
+    return { ok: false, state: "crashed", error: "launch failed" };
   }
 });
 
 // Called by renderer when it sees a permission_request on SSE.
-ipcMain.on("zb:permission-request", (_evt, notice: PermissionNotice) => {
-  notifier.onPermissionRequest(notice);
+ipcMain.on(IPC_CHANNELS.PERMISSION_REQUEST, (evt, payload) => {
+  try {
+    const notice = trusted(IPC_CHANNELS.PERMISSION_REQUEST, evt, payload) as PermissionNotice;
+    notifier.onPermissionRequest(notice);
+  } catch {
+    // Rejected sender or payload. No notification.
+  }
 });
 
 // Open folder picker for new session.
-ipcMain.handle("zb:pick-workspace", async () => {
+ipcMain.handle(IPC_CHANNELS.PICK_WORKSPACE, async (evt, payload) => {
+  try {
+    trusted(IPC_CHANNELS.PICK_WORKSPACE, evt, payload);
+  } catch {
+    return null;
+  }
   if (!mainWindow) return null;
   return folderPicker.pick(mainWindow, dialog);
 });
 
-ipcMain.on(IPC_CHANNELS.QUIT, async () => {
+ipcMain.on(IPC_CHANNELS.QUIT, async (evt, payload) => {
+  try {
+    trusted(IPC_CHANNELS.QUIT, evt, payload);
+  } catch {
+    return;
+  }
   await controller.kill();
   mainWindow?.close();
   app.quit();
@@ -158,6 +181,23 @@ app.on("window-all-closed", async () => {
 app.on("before-quit", async () => {
   await controller.kill();
 });
+
+function trusted(
+  channel: string,
+  evt: { sender: { id: number }; senderFrame: { routingId: number } | null },
+  payload: unknown,
+) {
+  if (!mainWindow) throw new IpcRejected(channel, "no window");
+  const sender: SenderRef = {
+    webContentsId: evt.sender.id,
+    frameRoutingId: evt.senderFrame?.routingId ?? -1,
+  };
+  const expected: SenderRef = {
+    webContentsId: mainWindow.webContents.id,
+    frameRoutingId: mainWindow.webContents.mainFrame.routingId,
+  };
+  return acceptIncoming(channel, sender, expected, payload);
+}
 
 async function fetchWorkspaceRoots() {
   if (!currentUrl) return;

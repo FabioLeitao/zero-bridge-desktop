@@ -3,13 +3,24 @@
 
 export const IPC_CHANNELS = {
   // Renderer asks the main process to start the sidecar.
+  // The payload must not carry a binary path, a port, or a token.
   LAUNCH: "zb:launch",
   // Sidecar state changes pushed to the renderer.
   STATE: "zb:state",
-  // Push a tray/menu label update.
+  // Tray events. Incoming calls are rejected; the main process owns the tray.
   TRAY: "zb:tray",
   // Ask the main process to quit and stop the sidecar.
   QUIT: "zb:quit",
+  // Dropped folder paths collected by the preload, not by page script.
+  FOLDER_DROP: "zb:folder-drop",
+  // Main process fetches workspace roots. The renderer does not send a token.
+  FETCH_WORKSPACE_ROOTS: "zb:fetch-workspace-roots",
+  // Permission text from the preload. The main process sanitizes it.
+  PERMISSION_REQUEST: "zb:permission-request",
+  // Open the native folder picker.
+  PICK_WORKSPACE: "zb:pick-workspace",
+  // Main process asks the page to focus a permission card.
+  PERMISSION_FOCUS: "zb:permission-focus",
 } as const;
 
 export type Channel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];

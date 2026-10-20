@@ -1,5 +1,5 @@
 import { type ChildProcessByStdio, spawn } from "node:child_process";
-import { promises as fs, constants as fsConst } from "node:fs";
+import { promises as fs, constants as fsConst, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -179,15 +179,16 @@ export class SidecarController {
       port,
       state: "starting",
       killed: async () => {
+        // Synchronous, before the first await. Electron may exit without waiting.
+        removeTokenDir(dir);
         try {
           proc.kill("SIGTERM");
-          // Grace period.
           await new Promise((r) => setTimeout(r, grace));
           if (!proc.killed) proc.kill("SIGKILL");
+        } catch {
+          // The child is already gone.
         } finally {
-          try {
-            await fs.rm(dir, { recursive: true, force: true });
-          } catch {}
+          removeTokenDir(dir);
         }
       },
     };
@@ -253,6 +254,14 @@ export class SidecarController {
     await this.handle.killed();
     if (this.handle.pollHandle) clearInterval(this.handle.pollHandle);
     this.handle = null;
+  }
+}
+
+function removeTokenDir(dir: string) {
+  try {
+    rmSync(dir, { recursive: true, force: true });
+  } catch {
+    // Already gone.
   }
 }
 

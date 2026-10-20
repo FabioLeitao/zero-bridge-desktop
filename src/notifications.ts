@@ -3,8 +3,8 @@
 // Nothing from agent output beyond that.
 // The Electron Notification constructor is injected so tests do not load electron.
 
-import { appendFileSync } from "node:fs";
 import { IPC_CHANNELS } from "./types.js";
+import { appendRedactedLog } from "./redactLog.js";
 
 export interface NoticeWindow {
   isVisible(): boolean;
@@ -71,7 +71,7 @@ export class PermissionNotifier {
 
     n.show();
     const noteLog = this.noteLogPath();
-    if (noteLog) appendFileSync(noteLog, body + "\n", { mode: 0o600 });
+    if (noteLog) appendRedactedLog(noteLog, body);
   }
 
   private focusOnPermission(notice: PermissionNotice) {

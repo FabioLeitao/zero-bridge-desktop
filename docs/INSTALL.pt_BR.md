@@ -28,6 +28,20 @@ O app desktop inicia o binário **zero-bridge** (Go) como sidecar em uma porta l
 - O bridge exige: bind apenas loopback, validação Host/Origin, sem CORS, CSP estrito.
 - Notificações nativas para pedidos de permissão mostram **apenas o título da ferramenta** (texto puro, sanitizado). Saída do agente nunca aparece em notificações.
 
+## Testes de ponta a ponta
+
+`npm test` não abre o Electron. Os scripts de instalação estão bloqueados (`.npmrc` `ignore-scripts=true`), então um `npm ci` comum não baixa o binário do Electron.
+
+Para rodar a UI localmente:
+
+```bash
+npm ci --allow-scripts
+npm run build
+npm run test:e2e
+```
+
+A suíte compila `cmd/zero-bridge` e `cmd/acpfake` do módulo Go. Defina `ZB_BRIDGE_SRC` com o diretório desse módulo, ou deixe o bridge em `./zero-bridge` ou `../zero-bridge`. O CI faz isso em `.github/workflows/check.yml` com `npm ci --allow-scripts`.
+
 ## Atualização
 
 Baixe o novo AppImage/.deb e substitua. Canal de auto-atualização ainda não existe (planejado para follow-up do S23c).

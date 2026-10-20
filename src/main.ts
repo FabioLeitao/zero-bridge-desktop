@@ -1,9 +1,11 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, session, Tray } from "electron";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { SidecarController, SidecarStartError } from "./sidecar.js";
 import { ephemeralPort } from "./listenPort.js";
 import { errorPageHtml } from "./errorPage.js";
 import { singleInstanceDecision } from "./singleInstance.js";
+import { loginSession } from "./sessionLogin.js";
 import { loadWindowBounds, saveWindowBounds } from "./windowBounds.js";
 import { IPC_CHANNELS, SidecarState } from "./types.js";
 import { IpcRejected, acceptIncoming, SenderRef } from "./ipcGuard.js";
@@ -24,8 +26,16 @@ import { FolderPicker } from "./folderPicker.js";
 
 let mainWindow: BrowserWindow | null = null;
 const controller = new SidecarController();
+function trayIcon(): string {
+  const candidates = [
+    join(import.meta.dirname, "..", "assets", "icon.png"),
+    join(import.meta.dirname, "..", "..", "assets", "icon.png"),
+  ];
+  return candidates.find((path) => existsSync(path)) ?? candidates[0]!;
+}
+
 const tray = new TrayController(
-  join(import.meta.dirname, "..", "assets", "icon.png"),
+  trayIcon(),
   {
     create: (iconPath) => new Tray(iconPath),
     buildMenu: (template) => Menu.buildFromTemplate(template),
@@ -121,6 +131,19 @@ app.on("ready", async () => {
   });
 
   mainWindow.once("ready-to-show", () => mainWindow?.show());
+
+  try {
+    resolveAllowedBins(process.env);
+    await startSidecar();
+  } catch (err) {
+    if (err instanceof SidecarStartError) {
+      await showSidecarError(err.state, "the sidecar did not start");
+    } else if (!process.env.ZB_BRIDGE_BIN && !process.env.ZB_E2E_BRIDGE_BIN) {
+      await showSidecarError("agent-not-found", "the sidecar binaries are not configured");
+    } else {
+      await showSidecarError("crashed", "the sidecar did not start");
+    }
+  }
 });
 
 ipcMain.handle(IPC_CHANNELS.LAUNCH, async (evt, payload) => {
@@ -129,38 +152,7 @@ ipcMain.handle(IPC_CHANNELS.LAUNCH, async (evt, payload) => {
     if (body.workspaceRoot && !(await pathAllowed(folderPicker.roots(), body.workspaceRoot))) {
       return rendererLaunchView({ ok: false, state: "stopped", error: "workspace rejected" });
     }
-    const bins = resolveAllowedBins(process.env);
-    const port = ephemeralPort(process.env.ZB_E2E_PORT);
-    const tokenFromEnv = process.env.ZB_E2E_TOKEN_FILE;
-    const tokenDir = tokenFromEnv
-      ? String(tokenFromEnv).replace(/token\.txt$/, "")
-      : defaultTokenDir(app.getPath("userData"));
-    const handle = await controller.launch({
-      bridgeBin: bins.bridgeBin,
-      agentBin: bins.agentBin,
-      port,
-      tokenDir,
-      workspaceRoot: body.workspaceRoot,
-    });
-
-    if (handle.state !== "running") {
-      await controller.kill();
-      return showSidecarError(handle.state, "the sidecar did not become healthy");
-    }
-
-    sidecarToken = handle.token;
-    sidecarTokenPath = handle.tokenPath;
-    currentUrl = `http://127.0.0.1:${handle.port}/`;
-
-    mainWindow?.webContents.send(IPC_CHANNELS.STATE, {
-      state: handle.state,
-      url: currentUrl,
-    });
-
-    // Fetch workspace roots for folder picker validation.
-    await refreshWorkspaceRoots();
-
-    return rendererLaunchView({ ok: true, state: handle.state, url: currentUrl });
+    return startSidecar(body.workspaceRoot);
   } catch (e) {
     if (e instanceof IpcRejected) {
       return rendererLaunchView({ ok: false, state: "stopped", error: "rejected" });
@@ -212,6 +204,54 @@ app.on("window-all-closed", async () => {
 app.on("before-quit", async () => {
   await controller.kill();
 });
+
+async function startSidecar(workspaceRoot?: string) {
+  const bins = resolveAllowedBins(process.env);
+  const port = ephemeralPort(process.env.ZB_E2E_PORT);
+  const tokenFromEnv = process.env.ZB_E2E_TOKEN_FILE;
+  const tokenDir = tokenFromEnv
+    ? String(tokenFromEnv).replace(/token\.txt$/, "")
+    : defaultTokenDir(app.getPath("userData"));
+  const handle = await controller.launch({
+    bridgeBin: bins.bridgeBin,
+    agentBin: bins.agentBin,
+    port,
+    tokenDir,
+    workspaceRoot,
+    healthTimeoutMs: 15000,
+  });
+
+  if (handle.state !== "running") {
+    await controller.kill();
+    return showSidecarError(handle.state, "the sidecar did not become healthy");
+  }
+
+  sidecarToken = handle.token;
+  sidecarTokenPath = handle.tokenPath;
+  currentUrl = `http://127.0.0.1:${handle.port}/`;
+
+  try {
+    const cookie = await loginSession(currentUrl, handle.token);
+    await session.defaultSession.cookies.set({
+      url: currentUrl,
+      name: cookie.name,
+      value: cookie.value,
+      httpOnly: true,
+      sameSite: "strict",
+    });
+    await mainWindow?.loadURL(currentUrl);
+  } catch {
+    await controller.kill();
+    return showSidecarError("crashed", "the sidecar session was not established");
+  }
+
+  mainWindow?.webContents.send(IPC_CHANNELS.STATE, {
+    state: handle.state,
+    url: currentUrl,
+  });
+  await refreshWorkspaceRoots();
+  return rendererLaunchView({ ok: true, state: handle.state, url: currentUrl });
+}
 
 async function showSidecarError(state: SidecarState, detail: string) {
   currentUrl = null;

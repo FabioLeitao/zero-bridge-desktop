@@ -28,6 +28,20 @@ The desktop app starts the **zero-bridge** Go binary as a sidecar on a local loo
 - The bridge enforces: loopback-only bind, Host/Origin validation, no CORS, strict CSP.
 - Native notifications for permission requests show **only the tool title** (text-only, sanitized). Agent output is never shown in notifications.
 
+## End-to-end tests
+
+`npm test` does not launch Electron. The install scripts are blocked (`.npmrc` `ignore-scripts=true`), so a normal `npm ci` does not download the Electron binary.
+
+To run the UI tests locally:
+
+```bash
+npm ci --allow-scripts
+npm run build
+npm run test:e2e
+```
+
+The suite builds `cmd/zero-bridge` and `cmd/acpfake` from the Go module. Set `ZB_BRIDGE_SRC` to that module directory, or check the bridge out at `./zero-bridge` or `../zero-bridge`. CI does this in `.github/workflows/check.yml` with `npm ci --allow-scripts`.
+
 ## Update
 
 Re-download the new AppImage/.deb and replace. No auto-update channel yet (planned for S23c follow-up).

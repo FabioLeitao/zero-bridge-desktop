@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { IPC_CHANNELS } from "./types.js";
+import { noticeFromCard } from "./permissionCard.js";
 
 contextBridge.exposeInMainWorld("zb", {
   launch: (payload?: { workspaceRoot?: string }) =>
@@ -44,4 +45,18 @@ window.addEventListener("DOMContentLoaded", () => {
     if (paths.length === 0) return;
     void ipcRenderer.invoke(IPC_CHANNELS.FOLDER_DROP, paths);
   });
+
+  const seen = new Set<string>();
+  const scan = () => {
+    document.querySelectorAll("section.perm").forEach((card) => {
+      const title = card.querySelector("p")?.textContent ?? "";
+      const labelledBy = card.getAttribute("aria-labelledby") ?? "";
+      const notice = noticeFromCard(title, labelledBy);
+      if (!notice || seen.has(notice.reqId)) return;
+      seen.add(notice.reqId);
+      ipcRenderer.send(IPC_CHANNELS.PERMISSION_REQUEST, notice);
+    });
+  };
+  scan();
+  new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
 });

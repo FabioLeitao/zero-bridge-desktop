@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
-import { FuseState, FuseV1Options, getCurrentFuseWire } from "@electron/fuses";
+import { createRequire } from "node:module";
 
-const binary = "dist/packages/linux-unpacked/zero-bridge";
+const require = createRequire(import.meta.url);
+const { FuseV1Options, getCurrentFuseWire } = require("@electron/fuses");
+const { FuseState } = require("@electron/fuses/dist/constants.js");
+
+// electron-builder names the Linux executable after the package name.
+const binary = "dist/packages/linux-unpacked/zero-bridge-desktop";
 const source = "src/electron.fuses.ts";
 
 const camelByFuse = {

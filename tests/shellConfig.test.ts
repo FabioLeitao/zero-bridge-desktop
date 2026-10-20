@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadShellConfig, parseShellConfig, readShellConfig } from "../src/shellConfig.js";
 import { errorPageHtml } from "../src/errorPage.js";
-import { resolveAllowedBins } from "../src/bins.js";
+import { configBinaryAllowed, resolveAllowedBins } from "../src/bins.js";
 
 describe("shell config", () => {
   it("reads bins, unix socket, login, and locale from a local file", async () => {
@@ -86,5 +86,24 @@ describe("shell config", () => {
     );
     assert.equal(bins.bridgeBin, bridge);
     assert.equal(bins.agentBin, agent);
+  });
+
+  it("refuses a config binary the user does not own or that others can write", () => {
+    const uid = 1000;
+    const file = { uid, mode: 0o100755, isFile: () => true };
+    configBinaryAllowed(file, uid);
+    assert.throws(() => configBinaryAllowed({ ...file, uid: 0 }, uid));
+    assert.throws(() => configBinaryAllowed({ ...file, mode: 0o100775 }, uid));
+    assert.throws(() => configBinaryAllowed({ ...file, mode: 0o100707 }, uid));
+    assert.throws(() => configBinaryAllowed({ ...file, isFile: () => false }, uid));
+
+    const dir = mkdtempSync(join(tmpdir(), "zb-own-"));
+    const bridge = join(dir, "bridge");
+    const agent = join(dir, "agent");
+    writeFileSync(bridge, "");
+    writeFileSync(agent, "");
+    chmodSync(bridge, 0o777);
+    chmodSync(agent, 0o755);
+    assert.throws(() => resolveAllowedBins({}, false, { bridgeBin: bridge, agentBin: agent }));
   });
 });

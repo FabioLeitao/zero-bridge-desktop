@@ -267,6 +267,8 @@ async function startSidecar(workspaceRoot?: string) {
     workspaceRoot,
     unixSocket: shellConfig.unixSocket,
     passEnv: shellConfig.passEnv,
+    agentArgs: shellConfig.agentArgs,
+    profile: shellConfig.profile,
     packaged: app.isPackaged,
     healthTimeoutMs: 15000,
   });

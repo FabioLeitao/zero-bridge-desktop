@@ -63,7 +63,7 @@ describe("ipc rejection", () => {
   }
 
   it("names forbidden launch fields", () => {
-    for (const field of ["bridgeBin", "agentBin", "tokenPath", "workspaceRoot"]) {
+    for (const field of ["bridgeBin", "agentBin", "tokenPath", "workspaceRoot", "agentArgs", "profile"]) {
       assert.throws(
         () => acceptIncoming(IPC_CHANNELS.LAUNCH, sender, expected, { [field]: "/tmp/x" }),
         (err: unknown) => err instanceof IpcRejected && err.message === "forbidden field",

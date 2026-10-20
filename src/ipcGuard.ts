@@ -37,6 +37,8 @@ const LAUNCH_FORBIDDEN = new Set([
   "tokenPath",
   "unixSocket",
   "workspaceRoot",
+  "agentArgs",
+  "profile",
 ]);
 
 export interface LaunchBody {

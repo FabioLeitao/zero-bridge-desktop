@@ -78,7 +78,25 @@ describe("SidecarController branches", () => {
     assert.ok(seen.args.includes("127.0.0.1:9"));
     assert.ok(seen.args.includes("--workspace-root"));
     assert.ok(seen.args.includes("/tmp/zb-workspace"));
+    assert.equal(seen.args.includes("--agent-arg"), false);
+    assert.equal(seen.args.includes("--profile"), false);
     assert.equal(seen.env?.ZERO_BRIDGE_TOKEN, undefined);
+    await ctrl.kill();
+  });
+
+  it("passes each configured agent argument and the profile", async () => {
+    const child = new FakeChild();
+    const { ctrl, seen } = await launchFake(child, {
+      agentArgs: ["acp", "e2e-marker"],
+      profile: "generic",
+    });
+    const pairs: string[] = [];
+    for (let i = 0; i < seen.args.length - 1; i++) {
+      if (seen.args[i] === "--agent-arg") pairs.push(seen.args[i + 1]);
+    }
+    assert.deepEqual(pairs, ["acp", "e2e-marker"]);
+    const profileAt = seen.args.indexOf("--profile");
+    assert.equal(seen.args[profileAt + 1], "generic");
     await ctrl.kill();
   });
 

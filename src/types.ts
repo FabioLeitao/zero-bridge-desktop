@@ -38,7 +38,7 @@ export type SidecarState =
 export interface LaunchRequest {
   // Absolute path to the zero-bridge binary. Must exist and be executable.
   bridgeBin: string;
-  // Absolute path to the zero binary (agent). Must exist and be executable.
+  // Absolute path to the agent binary. Must exist and be executable.
   agentBin: string;
   // Ephemeral loopback port chosen by the caller (or 0 to ask the OS).
   port: number;

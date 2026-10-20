@@ -26,7 +26,7 @@ O shell lê os binários de `ZB_BRIDGE_BIN` e `ZB_AGENT_BIN`. `shell-config.json
 
 - `contextIsolation`, `sandbox` e `nodeIntegration: false`.
 - Cada canal IPC confere o frame do remetente e o payload. `zb:launch` não aceita caminho de binário.
-- O token de lançamento fica no processo principal. O arquivo é `0600` em `$XDG_RUNTIME_DIR/zero-bridge` (`0700`), ou no diretório temporário quando essa variável não existe. Falha de `chmod` aborta o lançamento. Veja [docs/INSTALL.pt_BR.md](docs/INSTALL.pt_BR.md).
+- O token de lançamento fica no processo principal. O arquivo é `0600` em `$XDG_RUNTIME_DIR/zero-bridge` (`0700`), ou em `<tmpdir>/zero-bridge-<uid>` quando essa variável não existe. Falha de `chmod` aborta o lançamento. Veja [docs/INSTALL.pt_BR.md](docs/INSTALL.pt_BR.md).
 - A porta `0` continua efêmera. A saúde é `GET /health` sem token. Falha mostra uma página de erro com o texto escapado.
 - O shell define CSP, nega permissão pedida pela página e nega navegação enquanto a origem do sidecar não existe.
 - Sair pela bandeja encerra o sidecar. O texto da notificação é limpo no processo principal.

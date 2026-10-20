@@ -55,9 +55,9 @@ No Linux, `app.getPath("userData")` é `$XDG_CONFIG_HOME/zero-bridge-desktop` qu
 | `shell-config.json`, `window-bounds.json` | `app.getPath("userData")` |
 | `localStorage` da página | o perfil do Chromium nesse mesmo diretório de dados. O shell não escolhe o caminho |
 | `shell.log` | `app.getPath("logs")`. As linhas gravadas passam por `src/redactLog.ts` |
-| Diretório do token e `bridge.sock` | `$XDG_RUNTIME_DIR/zero-bridge` no modo `0700` quando essa variável é um caminho absoluto. Senão, `<tmpdir>/zero-bridge` no modo `0700` |
+| Diretório do token e `bridge.sock` | `$XDG_RUNTIME_DIR/zero-bridge` no modo `0700` quando essa variável é um caminho absoluto. Senão, `<tmpdir>/zero-bridge-<uid>` no modo `0700` no POSIX. No Windows fica `<tmpdir>/zero-bridge` |
 
-Sem o caminho de dados do usuário ou o de logs, o shell recusa. Ele não monta um home por conta própria. Um `unixSocket` absoluto em `shell-config.json` é o caminho do operador. O socket que o shell alocaria é `bridge.sock` nesse diretório privado. O listen padrão continua a porta loopback efêmera.
+Sem o caminho de dados do usuário ou o de logs, o shell recusa. Ele não monta um home por conta própria. Antes de usar, faz `lstat` do diretório privado e recusa symlink, outro dono ou modo diferente de `0700`, sem seguir o link. Um `unixSocket` absoluto em `shell-config.json` é o caminho do operador. O socket que o shell alocaria é `bridge.sock` nesse diretório privado. O listen padrão continua a porta loopback efêmera.
 
 ## Token e Segurança
 

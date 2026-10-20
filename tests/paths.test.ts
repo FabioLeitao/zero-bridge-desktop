@@ -1,7 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { chmodSync, lstatSync, mkdirSync, mkdtempSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { shellPaths } from "../src/paths.js";
+import { claimPrivateDir, shellPaths, type PrivateDirIo } from "../src/paths.js";
 
 const logs = "/var/lib/zb-logs";
 const userData = "/var/lib/zb-user";
@@ -30,9 +32,10 @@ describe("shell paths", () => {
       userData,
       logs,
       tmpdir: "/tmp/zb",
+      uid: 1000,
     });
-    assert.equal(paths.tokenDir, "/tmp/zb/zero-bridge");
-    assert.equal(paths.socketPath, "/tmp/zb/zero-bridge/bridge.sock");
+    assert.equal(paths.tokenDir, "/tmp/zb/zero-bridge-1000");
+    assert.equal(paths.socketPath, "/tmp/zb/zero-bridge-1000/bridge.sock");
     assert.equal(paths.tokenDir.includes("/home/me"), false);
   });
 
@@ -55,9 +58,10 @@ describe("shell paths", () => {
       userData: "/var/lib/zb-user",
       logs,
       tmpdir: "/var/folders/zb",
+      uid: 1000,
     });
-    assert.equal(mac.tokenDir, "/var/folders/zb/zero-bridge");
-    assert.equal(mac.socketPath, "/var/folders/zb/zero-bridge/bridge.sock");
+    assert.equal(mac.tokenDir, "/var/folders/zb/zero-bridge-1000");
+    assert.equal(mac.socketPath, "/var/folders/zb/zero-bridge-1000/bridge.sock");
     assert.equal(mac.tokenDir.includes("/Users/me"), false);
   });
 
@@ -78,3 +82,73 @@ describe("shell paths", () => {
     }
   });
 });
+
+describe("private runtime directory", () => {
+  it("creates a 0700 directory when the path is absent", async () => {
+    const uid = process.getuid?.();
+    if (uid === undefined) return;
+    const root = mkdtempSync(join(tmpdir(), "zb-priv-"));
+    const dir = join(root, "zero-bridge-" + uid);
+    await claimPrivateDir(dir, uid);
+    const stat = lstatSync(dir);
+    assert.equal(stat.isSymbolicLink(), false);
+    assert.equal(stat.isDirectory(), true);
+    assert.equal(stat.uid, uid);
+    assert.equal(stat.mode & 0o777, 0o700);
+  });
+
+  it("refuses a symlink without following it", async () => {
+    const uid = process.getuid?.();
+    if (uid === undefined) return;
+    const root = mkdtempSync(join(tmpdir(), "zb-link-"));
+    const target = join(root, "target");
+    mkdirSync(target);
+    chmodSync(target, 0o755);
+    const link = join(root, "link");
+    symlinkSync(target, link);
+    await assert.rejects(() => claimPrivateDir(link, uid), /symlink/);
+    assert.equal(lstatSync(target).mode & 0o777, 0o755);
+    assert.equal(lstatSync(link).isSymbolicLink(), true);
+  });
+
+  it("refuses a directory owned by another uid", async () => {
+    let mkdirCalls = 0;
+    const io = stubDir({ uid: 1, mode: 0o40700, directory: true }, () => {
+      mkdirCalls += 1;
+    });
+    await assert.rejects(() => claimPrivateDir("/tmp/zb/zero-bridge-1000", 1000, io), /owner/);
+    assert.equal(mkdirCalls, 0);
+  });
+
+  it("refuses mode 0755", async () => {
+    let chmodCalls = 0;
+    const io = stubDir({ uid: 1000, mode: 0o40755, directory: true }, undefined, () => {
+      chmodCalls += 1;
+    });
+    await assert.rejects(() => claimPrivateDir("/tmp/zb/zero-bridge-1000", 1000, io), /mode/);
+    assert.equal(chmodCalls, 0);
+  });
+});
+
+function stubDir(
+  stat: { uid: number; mode: number; directory: boolean; symlink?: boolean },
+  onMkdir?: () => void,
+  onChmod?: () => void,
+): PrivateDirIo {
+  return {
+    async lstat() {
+      return {
+        uid: stat.uid,
+        mode: stat.mode,
+        isDirectory: () => stat.directory && !stat.symlink,
+        isSymbolicLink: () => Boolean(stat.symlink),
+      };
+    },
+    async mkdir() {
+      onMkdir?.();
+    },
+    async chmod() {
+      onChmod?.();
+    },
+  };
+}

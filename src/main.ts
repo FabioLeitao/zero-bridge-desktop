@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, protocol, session, Tray } from "electron";
 import { existsSync } from "node:fs";
-import { mkdir, chmod } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { SidecarController, SidecarStartError } from "./sidecar.js";
@@ -14,7 +14,7 @@ import { IpcRejected, acceptIncoming, SenderRef } from "./ipcGuard.js";
 import { ipcLog } from "./ipcLog.js";
 import { resolveAllowedBins } from "./bins.js";
 import { appendRedactedLog } from "./redactLog.js";
-import { PRIVATE_DIR_MODE, shellPaths, type ShellPaths } from "./paths.js";
+import { PRIVATE_DIR_MODE, claimPrivateDir, shellPaths, type ShellPaths } from "./paths.js";
 import { fetchWorkspaceRoots } from "./workspaceRoots.js";
 import { approvedWorkspace } from "./workspaceLaunch.js";
 import { testHooks } from "./testEnv.js";
@@ -103,15 +103,17 @@ if (singleInstanceDecision(app.requestSingleInstanceLock()) === "quit") {
 }
 
 app.on("ready", async () => {
+  const uid = process.getuid?.();
+  if (typeof uid !== "number") throw new Error("uid required");
   dirs = shellPaths({
     platform: process.platform,
     env: process.env,
     userData: app.getPath("userData"),
     logs: app.getPath("logs"),
     tmpdir: tmpdir(),
+    uid,
   });
-  await mkdir(dirs.runtimeDir, { recursive: true, mode: PRIVATE_DIR_MODE });
-  await chmod(dirs.runtimeDir, PRIVATE_DIR_MODE);
+  await claimPrivateDir(dirs.runtimeDir, uid);
   await mkdir(dirname(dirs.logFile), { recursive: true, mode: PRIVATE_DIR_MODE });
   await startHost({
     createWindow: () => createWindow(),

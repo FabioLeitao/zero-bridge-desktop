@@ -34,6 +34,7 @@ const LAUNCH_FORBIDDEN = new Set([
   "token",
   "tokenPath",
   "unixSocket",
+  "workspaceRoot",
 ]);
 
 export interface LaunchBody {
@@ -88,10 +89,9 @@ function parseLaunch(payload: unknown): LaunchBody {
   const obj = plain(payload, IPC_CHANNELS.LAUNCH);
   for (const key of Object.keys(obj)) {
     if (LAUNCH_FORBIDDEN.has(key)) throw new IpcRejected(IPC_CHANNELS.LAUNCH, "forbidden field");
-    if (key !== "workspaceRoot") throw new IpcRejected(IPC_CHANNELS.LAUNCH, "unknown field");
+    throw new IpcRejected(IPC_CHANNELS.LAUNCH, "unknown field");
   }
-  if (obj.workspaceRoot === undefined) return {};
-  return { workspaceRoot: bounded(obj.workspaceRoot, IPC_CHANNELS.LAUNCH, 4096) };
+  return {};
 }
 
 function parsePaths(payload: unknown): string[] {

@@ -3,8 +3,7 @@ import { IPC_CHANNELS } from "./types.js";
 import { noticeFromCard } from "./permissionCard.js";
 
 contextBridge.exposeInMainWorld("zb", {
-  launch: (payload?: { workspaceRoot?: string }) =>
-    ipcRenderer.invoke(IPC_CHANNELS.LAUNCH, payload),
+  launch: () => ipcRenderer.invoke(IPC_CHANNELS.LAUNCH),
   quit: () => ipcRenderer.send(IPC_CHANNELS.QUIT),
   onState: (cb: (e: any) => void) =>
     ipcRenderer.on(IPC_CHANNELS.STATE, (_evt, payload) => cb(payload)),

@@ -11,7 +11,8 @@ import { IPC_CHANNELS, SidecarState } from "./types.js";
 import { IpcRejected, acceptIncoming, SenderRef } from "./ipcGuard.js";
 import { resolveAllowedBins } from "./bins.js";
 import { defaultTokenDir } from "./tokenDir.js";
-import { fetchWorkspaceRoots, pathAllowed } from "./workspaceRoots.js";
+import { fetchWorkspaceRoots } from "./workspaceRoots.js";
+import { cwdForAgent } from "./workspaceLaunch.js";
 import { rendererLaunchView } from "./launchView.js";
 import {
   denyPagePermission,
@@ -134,7 +135,7 @@ app.on("ready", async () => {
 
   try {
     resolveAllowedBins(process.env);
-    await startSidecar();
+    await startSidecar(cwdForAgent(undefined, folderPicker.chosen()));
   } catch (err) {
     if (err instanceof SidecarStartError) {
       await showSidecarError(err.state, "the sidecar did not start");
@@ -148,11 +149,8 @@ app.on("ready", async () => {
 
 ipcMain.handle(IPC_CHANNELS.LAUNCH, async (evt, payload) => {
   try {
-    const body = trusted(IPC_CHANNELS.LAUNCH, evt, payload) as { workspaceRoot?: string };
-    if (body.workspaceRoot && !(await pathAllowed(folderPicker.roots(), body.workspaceRoot))) {
-      return rendererLaunchView({ ok: false, state: "stopped", error: "workspace rejected" });
-    }
-    return startSidecar(body.workspaceRoot);
+    trusted(IPC_CHANNELS.LAUNCH, evt, payload);
+    return startSidecar(cwdForAgent(undefined, folderPicker.chosen()));
   } catch (e) {
     if (e instanceof IpcRejected) {
       return rendererLaunchView({ ok: false, state: "stopped", error: "rejected" });

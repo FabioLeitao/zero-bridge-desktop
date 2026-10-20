@@ -22,7 +22,7 @@ const outgoing = [IPC_CHANNELS.STATE, IPC_CHANNELS.TRAY, IPC_CHANNELS.PERMISSION
 function goodPayload(channel: string): unknown {
   switch (channel) {
     case IPC_CHANNELS.LAUNCH:
-      return { workspaceRoot: "/tmp/zb-ws" };
+      return undefined;
     case IPC_CHANNELS.FOLDER_DROP:
       return ["/tmp/zb-drop"];
     case IPC_CHANNELS.PERMISSION_REQUEST:

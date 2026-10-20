@@ -20,14 +20,20 @@ export interface FolderDialog {
 
 export class FolderPicker {
   private allowedRoots: string[] = [];
+  private validated: string | null = null;
 
   // Called at startup after we fetch /v1/capabilities (or /v1/workspace-roots).
   setAllowedRoots(roots: string[]) {
     this.allowedRoots = roots.filter((root) => root.length > 0);
+    this.validated = null;
   }
 
   roots(): readonly string[] {
     return this.allowedRoots;
+  }
+
+  chosen(): string | null {
+    return this.validated;
   }
 
   // Returns the chosen absolute path or null if cancelled/invalid.
@@ -43,7 +49,10 @@ export class FolderPicker {
 
     if (res.canceled || res.filePaths.length === 0) return null;
     const chosen = resolve(res.filePaths[0]);
-    if (await pathAllowed(this.allowedRoots, chosen)) return chosen;
+    if (await pathAllowed(this.allowedRoots, chosen)) {
+      this.validated = chosen;
+      return chosen;
+    }
 
     await dlg.showMessageBox(mainWindow, {
       type: "error",
@@ -59,7 +68,10 @@ export class FolderPicker {
   async handleDrop(paths: string[]): Promise<string | null> {
     if (paths.length === 0 || this.allowedRoots.length === 0) return null;
     const chosen = resolve(paths[0]);
-    if (await pathAllowed(this.allowedRoots, chosen)) return chosen;
+    if (await pathAllowed(this.allowedRoots, chosen)) {
+      this.validated = chosen;
+      return chosen;
+    }
     return null;
   }
 }

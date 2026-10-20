@@ -82,7 +82,7 @@ As raízes vêm de `GET /v1/info` com bearer (`src/workspaceRoots.ts`). Lista va
 | Negação de serviço | `/health` é consultado sem token. Stdout não é sinal de saúde. O stderr vira `port-in-use`, `bad-token`, `agent-not-found` ou `crashed`, e a janela mostra esse estado. **Verificado.** |
 | Elevação | `chmod` `0700` e depois `0600`. Falha apaga o diretório e lança erro. **Verificado.** O diretório padrão é `userData/tokens` (`src/tokenDir.ts`). |
 
-O ambiente do filho é uma allowlist (`src/childEnv.ts`, `tests/childEnv.test.ts`). Linhas gravadas em log perdem o token, `Authorization` e `zb_session` (`src/redactLog.ts`). A classificação ainda lê o stderr cru em memória. Sair pela bandeja chama `controller.kill` e depois `app.quit` (`tests/tray.test.ts`). Iniciar com o login fica desligado salvo `openAtLogin` em `shell-config.json` (`tests/loginItem.test.ts`). `before-quit` é async; o Electron pode sair antes dessa promise. **Suposição.** Um unix socket não tem URL no Chromium, então a janela não abre um proxy TCP na frente dele.
+O ambiente do filho é uma allowlist (`src/childEnv.ts`, `tests/childEnv.test.ts`). Linhas gravadas em log perdem o token, `Authorization` e `zb_session` (`src/redactLog.ts`). A classificação ainda lê o stderr cru em memória. Sair pela bandeja chama `controller.kill` e depois `app.quit` (`tests/tray.test.ts`). Iniciar com o login fica desligado salvo `openAtLogin` em `shell-config.json` (`tests/loginItem.test.ts`). `before-quit` é async; o Electron pode sair antes dessa promise. **Suposição.** Um unix socket não tem listener TCP. A janela carrega `zb://bridge/` e o processo principal encaminha essa origem para o socket. Não abre um proxy TCP.
 
 ### Notificações
 
@@ -123,7 +123,7 @@ Mutantes manuais (uma condição invertida, depois `git checkout --` no arquivo)
 | --- | --- | --- |
 | #3 IPC | `40ee2a1`, `9ac5adc`, `21a8d8e`, `04f931e`, `fa1f406` | um script no frame principal continua sendo esse remetente |
 | #4 token | `2f15118` | |
-| #5 sidecar | `93056c9`, `7722495`, `c02f4f9`, `2fc9e3b` | a janela não carrega um unix socket |
+| #5 sidecar | `93056c9`, `7722495`, `c02f4f9`, `2fc9e3b` | |
 | #6 shell | `278de5d`, `fa1f406` | fuses não conferidos num pacote gerado |
 | #7 pasta | `b06c125`, `21a8d8e`, `d430374`, `d21d6ee` | |
 | #8 bandeja | `2f7aa7a`, `38eac54` | |
@@ -136,6 +136,6 @@ Mutantes manuais (uma condição invertida, depois `git checkout --` no arquivo)
 1. Um script no frame principal é um remetente confiável. As regras de payload e a limpeza limitam isso; não tiram essa confiança.
 2. Os valores dos fuses estão travados no código. Não foram aplicados a um binário empacotado aqui.
 3. O auto-update assinado está descrito em `docs/AUTO_UPDATE.pt_BR.md` e não está implementado. Não há pacote macOS nem Windows.
-4. A janela não tem URL para um unix socket, então esse modo não carrega a UI do bridge.
+4. A página unix é encaminhada pelo processo principal. O `protocol.handle` do Electron em si não entra no teste unitário.
 5. O sidecar não é reiniciado depois de um crash.
 6. `before-quit` pode não esperar o `kill`.

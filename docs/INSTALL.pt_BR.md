@@ -19,7 +19,7 @@ zero-bridge-desktop
 
 ## Como funciona
 
-O app desktop inicia o binário **zero-bridge** (Go) como sidecar numa porta loopback efêmera. O bridge spawna o agente ACP (`zero acp`, ou `acpfake` nos testes). Depois que `GET /health` responde, o shell faz login em loopback, grava o cookie `zb_session` e carrega `http://127.0.0.1:<porta>/`. O listen por Unix socket existe no bridge e este shell ainda não o usa.
+O app desktop inicia o binário **zero-bridge** (Go) como sidecar. O listen padrão é uma porta loopback efêmera. Depois que `GET /health` responde, o shell faz login, grava o cookie `zb_session` e carrega `http://127.0.0.1:<porta>/`. Quando `shell-config.json` define um `unixSocket` absoluto, a bridge não escuta TCP. O shell faz login e carrega a UI por esse socket (`zb://bridge/`) e não abre um proxy TCP. A bridge continua criando o socket no modo `0600`.
 
 ## Token e Segurança
 

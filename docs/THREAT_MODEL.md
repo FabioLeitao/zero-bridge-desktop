@@ -82,7 +82,7 @@ Roots come from `GET /v1/info` with a bearer token (`src/workspaceRoots.ts`). An
 | Denial of service | `/health` is polled with no token. Stdout is not a health signal. stderr is classified as `port-in-use`, `bad-token`, `agent-not-found`, or `crashed`, and the window shows that state. **Verified.** |
 | Elevation | `chmod` `0700` then `0600`. A failure removes the directory and throws. **Verified.** Default directory is `userData/tokens` (`src/tokenDir.ts`). |
 
-The child environment is an allowlist (`src/childEnv.ts`, `tests/childEnv.test.ts`). Stored log lines drop the token, `Authorization`, and `zb_session` (`src/redactLog.ts`). Classification still reads raw stderr in memory. Tray Quit calls `controller.kill` and then `app.quit` (`tests/tray.test.ts`). Start at login is off unless `shell-config.json` sets `openAtLogin` (`tests/loginItem.test.ts`). `before-quit` is async; Electron may exit before that promise finishes. **Assumption.** A unix socket has no Chromium URL, so the window does not open a TCP proxy in front of it.
+The child environment is an allowlist (`src/childEnv.ts`, `tests/childEnv.test.ts`). Stored log lines drop the token, `Authorization`, and `zb_session` (`src/redactLog.ts`). Classification still reads raw stderr in memory. Tray Quit calls `controller.kill` and then `app.quit` (`tests/tray.test.ts`). Start at login is off unless `shell-config.json` sets `openAtLogin` (`tests/loginItem.test.ts`). `before-quit` is async; Electron may exit before that promise finishes. **Assumption.** A unix socket has no TCP listener. The window loads `zb://bridge/` and the main process forwards that origin to the socket. It does not open a TCP proxy.
 
 ### Notifications
 
@@ -123,7 +123,7 @@ Manual mutants (one inverted condition, then `git checkout --` the file) all fai
 | --- | --- | --- |
 | #3 IPC | `40ee2a1`, `9ac5adc`, `21a8d8e`, `04f931e`, `fa1f406` | a script in the main frame is still that sender |
 | #4 token | `2f15118` | |
-| #5 sidecar | `93056c9`, `7722495`, `c02f4f9`, `2fc9e3b` | the window cannot load a unix socket |
+| #5 sidecar | `93056c9`, `7722495`, `c02f4f9`, `2fc9e3b` | |
 | #6 shell | `278de5d`, `fa1f406` | fuses not checked on a built package |
 | #7 workspace | `b06c125`, `21a8d8e`, `d430374`, `d21d6ee` | |
 | #8 tray | `2f7aa7a`, `38eac54` | |
@@ -136,6 +136,6 @@ Manual mutants (one inverted condition, then `git checkout --` the file) all fai
 1. A script in the main frame is a trusted sender. Payload rules and the sanitizer bound it; they do not remove that trust.
 2. Fuse values are locked in source. They were not applied to a packaged binary here.
 3. Signed auto-update is described in `docs/AUTO_UPDATE.md` and is not implemented. No macOS or Windows package.
-4. The window has no URL for a unix socket, so that mode does not load the bridge UI.
+4. The unix page is forwarded by the main process. Electron's `protocol.handle` itself is not covered by the unit test.
 5. The sidecar is not restarted after a crash.
 6. `before-quit` may not wait for `kill`.

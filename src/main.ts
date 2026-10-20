@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, session, Tray } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, protocol, session, Tray } from "electron";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { SidecarController, SidecarStartError } from "./sidecar.js";
@@ -27,6 +27,7 @@ import { TrayController } from "./tray.js";
 import { PermissionNotifier, PermissionNotice } from "./notifications.js";
 import { FolderPicker } from "./folderPicker.js";
 import { loginItemSettings } from "./loginItem.js";
+import { loginOverUnix, unixInfo, unixProtocolResponse, UNIX_PAGE_ORIGIN } from "./unixPage.js";
 import { loadShellConfig, type ShellConfig } from "./shellConfig.js";
 import { shellLocale, shellStrings } from "./shellLocale.js";
 
@@ -60,6 +61,13 @@ let sidecarTokenPath: string | null = null;
 let sidecarToken: string | null = null;
 let singleInstanceLock = false;
 let shellConfig: ShellConfig = {};
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "zb",
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true },
+  },
+]);
 
 // Single instance lock (second launch focuses first window).
 if (singleInstanceDecision(app.requestSingleInstanceLock()) === "quit") {
@@ -248,16 +256,31 @@ async function startSidecar(workspaceRoot?: string) {
 
   sidecarToken = handle.token;
   sidecarTokenPath = handle.tokenPath;
-  currentUrl = `http://127.0.0.1:${handle.port}/`;
+  const unixSocket = shellConfig.unixSocket;
 
   try {
-    const cookie = await loginSession(currentUrl, handle.token);
+    const cookie = unixSocket
+      ? await loginOverUnix(unixSocket, handle.token)
+      : await loginSession(`http://127.0.0.1:${handle.port}/`, handle.token);
+    currentUrl = unixSocket ? UNIX_PAGE_ORIGIN : `http://127.0.0.1:${handle.port}/`;
+    if (unixSocket) {
+      protocol.handle("zb", async (request) => {
+        const page = await unixProtocolResponse(unixSocket, { method: request.method, url: request.url });
+        const headers = new Headers();
+        for (const [key, value] of Object.entries(page.headers)) {
+          if (value === undefined || key === "transfer-encoding" || key === "connection") continue;
+          headers.set(key, Array.isArray(value) ? value.join(", ") : value);
+        }
+        return new Response(new Uint8Array(page.body), { status: page.status, headers });
+      });
+    }
     await session.defaultSession.cookies.set({
       url: currentUrl,
       name: cookie.name,
       value: cookie.value,
       httpOnly: true,
       sameSite: "strict",
+      secure: Boolean(unixSocket),
     });
     await mainWindow?.loadURL(currentUrl);
   } catch {
@@ -313,7 +336,9 @@ async function refreshWorkspaceRoots() {
     return;
   }
   try {
-    const roots = await fetchWorkspaceRoots(currentUrl, sidecarToken);
+    const roots = shellConfig.unixSocket
+      ? await unixInfo(shellConfig.unixSocket, sidecarToken)
+      : await fetchWorkspaceRoots(currentUrl, sidecarToken);
     folderPicker.setAllowedRoots(roots);
   } catch {
     folderPicker.setAllowedRoots([]);

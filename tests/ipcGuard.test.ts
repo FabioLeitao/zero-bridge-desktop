@@ -4,9 +4,10 @@ import { IPC_CHANNELS } from "../src/types.js";
 import { IpcRejected, acceptIncoming } from "../src/ipcGuard.js";
 import { resolveAllowedBins } from "../src/bins.js";
 
-const expected = { webContentsId: 4, frameRoutingId: 8 };
-const sender = { webContentsId: 4, frameRoutingId: 8 };
-const other = { webContentsId: 4, frameRoutingId: 9 };
+const origin = "http://127.0.0.1:9/";
+const expected = { webContentsId: 4, frameRoutingId: 8, frameUrl: origin };
+const sender = { webContentsId: 4, frameRoutingId: 8, frameUrl: origin };
+const other = { webContentsId: 4, frameRoutingId: 9, frameUrl: origin };
 
 const incoming = [
   IPC_CHANNELS.LAUNCH,

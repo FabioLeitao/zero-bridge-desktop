@@ -1,9 +1,11 @@
 // One checker for every IPC channel: expected webContents, expected frame, payload shape.
 import { Channel, IPC_CHANNELS } from "./types.js";
+import { parseOrigin, sameOrigin } from "./origin.js";
 
 export interface SenderRef {
   webContentsId: number;
   frameRoutingId: number;
+  frameUrl: string | null;
 }
 
 export class IpcRejected extends Error {
@@ -60,8 +62,18 @@ function sameSender(sender: SenderRef, expected: SenderRef): boolean {
     sender.webContentsId === expected.webContentsId &&
     sender.frameRoutingId === expected.frameRoutingId &&
     sender.webContentsId > 0 &&
-    sender.frameRoutingId > 0
+    sender.frameRoutingId > 0 &&
+    sameFrameOrigin(sender.frameUrl, expected.frameUrl)
   );
+}
+
+function sameFrameOrigin(frameUrl: string | null, expectedUrl: string | null): boolean {
+  if (!frameUrl || !expectedUrl) return false;
+  try {
+    return sameOrigin(parseOrigin(frameUrl), parseOrigin(expectedUrl));
+  } catch {
+    return false;
+  }
 }
 
 function parsePayload(channel: Channel, payload: unknown) {

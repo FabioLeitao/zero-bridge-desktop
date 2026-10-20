@@ -9,8 +9,9 @@ import { FolderPicker } from "../src/folderPicker.js";
 import { pathAllowed } from "../src/workspaceRoots.js";
 import { cwdForAgent } from "../src/workspaceLaunch.js";
 
-const sender = { webContentsId: 4, frameRoutingId: 8 };
-const expected = { webContentsId: 4, frameRoutingId: 8 };
+const origin = "http://127.0.0.1:9/";
+const sender = { webContentsId: 4, frameRoutingId: 8, frameUrl: origin };
+const expected = { webContentsId: 4, frameRoutingId: 8, frameUrl: origin };
 
 describe("renderer workspace", () => {
   it("rejects a workspaceRoot from the renderer", () => {

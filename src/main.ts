@@ -96,7 +96,7 @@ app.on("ready", async () => {
     cb({ responseHeaders: withShellCsp(details.responseHeaders ?? {}) });
   });
 
-  // Block all popups/new windows.
+  // Navigation and window.open are denied before startSidecar loads any remote URL.
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: windowOpenDecision() }));
 
   const guardNavigation = (event: { preventDefault(): void }, url: string) => {
@@ -263,17 +263,19 @@ async function showSidecarError(state: SidecarState, detail: string) {
 
 function trusted(
   channel: string,
-  evt: { sender: { id: number }; senderFrame: { routingId: number } | null },
+  evt: { sender: { id: number }; senderFrame: { routingId: number; url: string } | null },
   payload: unknown,
 ) {
   if (!mainWindow) throw new IpcRejected(channel, "no window");
   const sender: SenderRef = {
     webContentsId: evt.sender.id,
     frameRoutingId: evt.senderFrame?.routingId ?? -1,
+    frameUrl: evt.senderFrame?.url ?? null,
   };
   const expected: SenderRef = {
     webContentsId: mainWindow.webContents.id,
     frameRoutingId: mainWindow.webContents.mainFrame.routingId,
+    frameUrl: currentUrl,
   };
   return acceptIncoming(channel, sender, expected, payload);
 }

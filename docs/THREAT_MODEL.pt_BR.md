@@ -38,6 +38,8 @@ principal --diálogo / bandeja / Notification--> SO
 
 Um script hostil que já roda no frame principal passa na checagem de remetente. O limite são as regras de payload.
 
+Uma chamada rejeitada é contada no processo principal como `ipc rejected channel=<nome> reason=<código> count=<n>` (`src/ipcLog.ts`). A linha não tem payload nem caminho. **Verificado:** `tests/ipcLog.test.ts`. O destino padrão é `console.error`.
+
 ## STRIDE
 
 ### Renderer e preload

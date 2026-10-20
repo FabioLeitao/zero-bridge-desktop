@@ -38,6 +38,8 @@ main --dialog / tray / Notification--> OS
 
 A hostile script that already runs in the main frame passes the sender check. The payload rules are the limit.
 
+A rejected call is counted in the main process as `ipc rejected channel=<name> reason=<code> count=<n>` (`src/ipcLog.ts`). The line has no payload and no path. **Verified:** `tests/ipcLog.test.ts`. The default sink is `console.error`.
+
 ## STRIDE
 
 ### Renderer and preload

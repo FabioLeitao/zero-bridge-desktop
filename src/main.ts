@@ -9,6 +9,7 @@ import { loginSession } from "./sessionLogin.js";
 import { loadWindowBounds, saveWindowBounds } from "./windowBounds.js";
 import { IPC_CHANNELS, SidecarState } from "./types.js";
 import { IpcRejected, acceptIncoming, SenderRef } from "./ipcGuard.js";
+import { ipcLog } from "./ipcLog.js";
 import { resolveAllowedBins } from "./bins.js";
 import { defaultTokenDir } from "./tokenDir.js";
 import { fetchWorkspaceRoots } from "./workspaceRoots.js";
@@ -114,7 +115,8 @@ app.on("ready", async () => {
     try {
       const paths = trusted(IPC_CHANNELS.FOLDER_DROP, evt, payload) as string[];
       return folderPicker.handleDrop(paths);
-    } catch {
+    } catch (err) {
+      noteRejection(IPC_CHANNELS.FOLDER_DROP, err, payload);
       return null;
     }
   });
@@ -123,7 +125,8 @@ app.on("ready", async () => {
   ipcMain.handle(IPC_CHANNELS.FETCH_WORKSPACE_ROOTS, async (evt, payload) => {
     try {
       trusted(IPC_CHANNELS.FETCH_WORKSPACE_ROOTS, evt, payload);
-    } catch {
+    } catch (err) {
+      noteRejection(IPC_CHANNELS.FETCH_WORKSPACE_ROOTS, err, payload);
       return [];
     }
     await refreshWorkspaceRoots();
@@ -157,6 +160,7 @@ ipcMain.handle(IPC_CHANNELS.LAUNCH, async (evt, payload) => {
     return startSidecar(cwdForAgent(undefined, folderPicker.chosen()));
   } catch (e) {
     if (e instanceof IpcRejected) {
+      noteRejection(IPC_CHANNELS.LAUNCH, e, payload);
       return rendererLaunchView({ ok: false, state: "stopped", error: "rejected" });
     }
     if (e instanceof SidecarStartError) {
@@ -171,8 +175,8 @@ ipcMain.on(IPC_CHANNELS.PERMISSION_REQUEST, (evt, payload) => {
   try {
     const notice = trusted(IPC_CHANNELS.PERMISSION_REQUEST, evt, payload) as PermissionNotice;
     notifier.onPermissionRequest(notice);
-  } catch {
-    // Rejected sender or payload. No notification.
+  } catch (err) {
+    noteRejection(IPC_CHANNELS.PERMISSION_REQUEST, err, payload);
   }
 });
 
@@ -180,7 +184,8 @@ ipcMain.on(IPC_CHANNELS.PERMISSION_REQUEST, (evt, payload) => {
 ipcMain.handle(IPC_CHANNELS.PICK_WORKSPACE, async (evt, payload) => {
   try {
     trusted(IPC_CHANNELS.PICK_WORKSPACE, evt, payload);
-  } catch {
+  } catch (err) {
+    noteRejection(IPC_CHANNELS.PICK_WORKSPACE, err, payload);
     return null;
   }
   if (!mainWindow) return null;
@@ -190,7 +195,8 @@ ipcMain.handle(IPC_CHANNELS.PICK_WORKSPACE, async (evt, payload) => {
 ipcMain.on(IPC_CHANNELS.QUIT, async (evt, payload) => {
   try {
     trusted(IPC_CHANNELS.QUIT, evt, payload);
-  } catch {
+  } catch (err) {
+    noteRejection(IPC_CHANNELS.QUIT, err, payload);
     return;
   }
   await controller.kill();
@@ -264,6 +270,11 @@ async function showSidecarError(state: SidecarState, detail: string) {
   await mainWindow?.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
   mainWindow?.webContents.send(IPC_CHANNELS.STATE, { state });
   return rendererLaunchView({ ok: false, state, error: detail });
+}
+
+function noteRejection(channel: string, err: unknown, payload: unknown) {
+  const reason = err instanceof IpcRejected ? err.message : "rejected";
+  ipcLog.record(channel, reason, payload);
 }
 
 function trusted(

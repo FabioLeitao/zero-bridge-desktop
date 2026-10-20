@@ -5,6 +5,8 @@ import { sidecarOrigin, isLoopbackHost, sameOrigin } from "./origin.js";
 import { IPC_CHANNELS } from "./types.js";
 import { IpcRejected, acceptIncoming, SenderRef } from "./ipcGuard.js";
 import { resolveAllowedBins } from "./bins.js";
+import { defaultTokenDir } from "./tokenDir.js";
+import { rendererLaunchView } from "./launchView.js";
 import { TrayController } from "./tray.js";
 import { PermissionNotifier, PermissionNotice } from "./notifications.js";
 import { FolderPicker } from "./folderPicker.js";
@@ -114,12 +116,15 @@ ipcMain.handle(IPC_CHANNELS.LAUNCH, async (evt, payload) => {
     const body = trusted(IPC_CHANNELS.LAUNCH, evt, payload) as { workspaceRoot?: string };
     const bins = resolveAllowedBins(process.env);
     const port = Number(process.env.ZB_E2E_PORT || "0") || 8765;
-    const tokenDir = String(process.env.ZB_E2E_TOKEN_FILE || "");
+    const tokenFromEnv = process.env.ZB_E2E_TOKEN_FILE;
+    const tokenDir = tokenFromEnv
+      ? String(tokenFromEnv).replace(/token\.txt$/, "")
+      : defaultTokenDir(app.getPath("userData"));
     const handle = await controller.launch({
       bridgeBin: bins.bridgeBin,
       agentBin: bins.agentBin,
       port,
-      tokenDir: tokenDir ? tokenDir.replace(/token\.txt$/, "") : "",
+      tokenDir,
       workspaceRoot: body.workspaceRoot,
     });
 
@@ -134,10 +139,12 @@ ipcMain.handle(IPC_CHANNELS.LAUNCH, async (evt, payload) => {
     // Fetch workspace roots for folder picker validation.
     await fetchWorkspaceRoots();
 
-    return { ok: true, state: handle.state, url: currentUrl, tokenPath: sidecarTokenPath };
+    return rendererLaunchView({ ok: true, state: handle.state, url: currentUrl });
   } catch (e) {
-    if (e instanceof IpcRejected) return { ok: false, state: "stopped", error: "rejected" };
-    return { ok: false, state: "crashed", error: "launch failed" };
+    if (e instanceof IpcRejected) {
+      return rendererLaunchView({ ok: false, state: "stopped", error: "rejected" });
+    }
+    return rendererLaunchView({ ok: false, state: "crashed", error: "launch failed" });
   }
 });
 

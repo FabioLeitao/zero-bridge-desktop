@@ -39,10 +39,21 @@ export interface SidecarHandle {
   killed: () => Promise<void>;
 }
 
+export interface TokenFiles {
+  chmod(path: string, mode: number): Promise<void>;
+}
+
+const defaultTokenFiles: TokenFiles = {
+  chmod: (path, mode) => fs.chmod(path, mode),
+};
+
 export class SidecarController {
   private handle: SidecarHandle | null = null;
 
-  constructor(private readonly spawnImpl: SidecarSpawn = spawn) {}
+  constructor(
+    private readonly spawnImpl: SidecarSpawn = spawn,
+    private readonly files: TokenFiles = defaultTokenFiles,
+  ) {}
 
   private async findFreePort(): Promise<number> {
     return new Promise((resolve, reject) => {
@@ -66,11 +77,17 @@ export class SidecarController {
 
     const dir = join(opts.tokenDir, randomUUID());
     await fs.mkdir(dir, { recursive: true, mode: 0o700 });
+    await this.files.chmod(dir, 0o700);
 
     const token = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
     const tokenPath = join(dir, "token.txt");
     await fs.writeFile(tokenPath, token + "\n", { mode: 0o600 });
-    await chmodOwnerOnly(tokenPath);
+    try {
+      await this.files.chmod(tokenPath, 0o600);
+    } catch (err) {
+      await fs.rm(dir, { recursive: true, force: true });
+      throw err;
+    }
 
     const args = [
       "--listen",
@@ -174,10 +191,4 @@ function sanitizeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   // Never forward bridge tokens into the child.
   delete out.ZERO_BRIDGE_TOKEN;
   return out;
-}
-
-async function chmodOwnerOnly(p: string): Promise<void> {
-  try {
-    await fs.chmod(p, 0o600);
-  } catch {}
 }

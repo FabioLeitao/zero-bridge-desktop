@@ -29,7 +29,7 @@ The shell reads the binaries from `ZB_BRIDGE_BIN` and `ZB_AGENT_BIN`. The unpack
 - The shell sets a CSP, denies page permission prompts, and denies navigation until the sidecar origin exists.
 - Tray Quit stops the sidecar. Notification text is stripped in the main process.
 
-The lockfile audit exception for `sprintf-js` is [docs/AUDIT_EXCEPTION.md](docs/AUDIT_EXCEPTION.md). The threat model is [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
+The lockfile audit exception for `sprintf-js` is [docs/AUDIT_EXCEPTION.md](docs/AUDIT_EXCEPTION.md). The threat model is [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md). The finish-line table is [docs/FINISH_LINE.md](docs/FINISH_LINE.md).
 
 ## Tests
 

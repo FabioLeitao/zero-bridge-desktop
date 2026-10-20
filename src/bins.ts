@@ -2,16 +2,21 @@
 import { accessSync, constants } from "node:fs";
 import { resolve } from "node:path";
 import { testHooks } from "./testEnv.js";
+import type { ShellConfig } from "./shellConfig.js";
 
 export interface AllowedBins {
   bridgeBin: string;
   agentBin: string;
 }
 
-export function resolveAllowedBins(env: NodeJS.ProcessEnv, packaged = false): AllowedBins {
+export function resolveAllowedBins(
+  env: NodeJS.ProcessEnv,
+  packaged = false,
+  config?: Pick<ShellConfig, "bridgeBin" | "agentBin">,
+): AllowedBins {
   const hooks = testHooks(env, packaged);
-  const bridge = first(env.ZB_BRIDGE_BIN, hooks.bridgeBin);
-  const agent = first(env.ZB_AGENT_BIN, hooks.agentBin);
+  const bridge = first(config?.bridgeBin, env.ZB_BRIDGE_BIN, hooks.bridgeBin);
+  const agent = first(config?.agentBin, env.ZB_AGENT_BIN, hooks.agentBin);
   if (!bridge || !agent) throw new Error("binaries are not configured");
   const bridgeBin = resolve(bridge);
   const agentBin = resolve(agent);

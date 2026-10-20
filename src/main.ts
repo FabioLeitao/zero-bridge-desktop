@@ -27,6 +27,7 @@ import { TrayController } from "./tray.js";
 import { PermissionNotifier, PermissionNotice } from "./notifications.js";
 import { FolderPicker } from "./folderPicker.js";
 import { loginItemSettings } from "./loginItem.js";
+import { loadShellConfig, type ShellConfig } from "./shellConfig.js";
 
 let mainWindow: BrowserWindow | null = null;
 const controller = new SidecarController();
@@ -57,6 +58,7 @@ let currentUrl: string | null = null;
 let sidecarTokenPath: string | null = null;
 let sidecarToken: string | null = null;
 let singleInstanceLock = false;
+let shellConfig: ShellConfig = {};
 
 // Single instance lock (second launch focuses first window).
 if (singleInstanceDecision(app.requestSingleInstanceLock()) === "quit") {
@@ -74,8 +76,9 @@ if (singleInstanceDecision(app.requestSingleInstanceLock()) === "quit") {
 app.on("ready", async () => {
   // Security hard code.
   app.commandLine.appendSwitch("disable-features", "TranslateUI");
-  // Off until a local config opts in. The call uses the desktop session, not extra privilege.
-  app.setLoginItemSettings(loginItemSettings(false));
+  shellConfig = await loadShellConfig(join(app.getPath("userData"), "shell-config.json"));
+  // Off until the local config opts in. The call uses the desktop session, not extra privilege.
+  app.setLoginItemSettings(loginItemSettings(shellConfig.openAtLogin));
 
   const boundsFile = join(app.getPath("userData"), "window-bounds.json");
   const saved = await loadWindowBounds(boundsFile);
@@ -144,7 +147,7 @@ app.on("ready", async () => {
   mainWindow.once("ready-to-show", () => mainWindow?.show());
 
   try {
-    resolveAllowedBins(process.env, app.isPackaged);
+    resolveAllowedBins(process.env, app.isPackaged, shellConfig);
     await startSidecar(await approvedWorkspace(folderPicker.roots(), folderPicker.chosen()));
   } catch (err) {
     if (err instanceof SidecarStartError) {
@@ -218,7 +221,7 @@ app.on("before-quit", async () => {
 
 async function startSidecar(workspaceRoot?: string) {
   const hooks = testHooks(process.env, app.isPackaged);
-  const bins = resolveAllowedBins(process.env, app.isPackaged);
+  const bins = resolveAllowedBins(process.env, app.isPackaged, shellConfig);
   const port = ephemeralPort(hooks.port);
   const tokenFromEnv = hooks.tokenFile;
   const tokenDir = tokenFromEnv
@@ -230,6 +233,7 @@ async function startSidecar(workspaceRoot?: string) {
     port,
     tokenDir,
     workspaceRoot,
+    unixSocket: shellConfig.unixSocket,
     healthTimeoutMs: 15000,
   });
 

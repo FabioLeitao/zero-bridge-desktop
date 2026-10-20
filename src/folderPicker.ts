@@ -1,8 +1,21 @@
 // Folder picker for workspace selection (S23b).
 // Validates against bridge's --workspace-root allowlist.
 // Returns absolute path or null.
-import { BrowserWindow, dialog, app } from "electron";
-import { resolve, isAbsolute } from "node:path";
+// The Electron dialog is injected so unit tests do not load the electron module.
+import { resolve } from "node:path";
+
+export interface PickerWindow {}
+
+export interface FolderDialog {
+  showOpenDialog(
+    win: PickerWindow,
+    opts: { title: string; properties: string[]; buttonLabel: string },
+  ): Promise<{ canceled: boolean; filePaths: string[] }>;
+  showMessageBox(
+    win: PickerWindow,
+    opts: { type: string; title: string; message: string; detail: string; buttons: string[] },
+  ): Promise<unknown>;
+}
 
 export class FolderPicker {
   private allowedRoots: string[] = [];
@@ -13,10 +26,10 @@ export class FolderPicker {
   }
 
   // Returns the chosen absolute path or null if cancelled/invalid.
-  async pick(mainWindow: BrowserWindow): Promise<string | null> {
+  async pick(mainWindow: PickerWindow, dlg: FolderDialog): Promise<string | null> {
     if (this.allowedRoots.length === 0) {
       // Fallback: allow any directory if no roots advertised yet.
-      const res = await dialog.showOpenDialog(mainWindow, {
+      const res = await dlg.showOpenDialog(mainWindow, {
         title: "Select workspace for new session",
         properties: ["openDirectory", "createDirectory"],
         buttonLabel: "Choose",
@@ -26,7 +39,7 @@ export class FolderPicker {
     }
 
     // Show dialog; we'll validate after selection.
-    const res = await dialog.showOpenDialog(mainWindow, {
+    const res = await dlg.showOpenDialog(mainWindow, {
       title: "Select workspace for new session",
       properties: ["openDirectory", "createDirectory"],
       buttonLabel: "Choose",
@@ -43,7 +56,7 @@ export class FolderPicker {
     }
 
     // Invalid: outside allowed roots.
-    await dialog.showMessageBox(mainWindow, {
+    await dlg.showMessageBox(mainWindow, {
       type: "error",
       title: "Workspace not allowed",
       message: `The chosen folder is outside the allowed workspace roots.`,

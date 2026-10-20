@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, session } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, session, Tray } from "electron";
 import { join } from "node:path";
 import { SidecarController } from "./sidecar.js";
 import { sidecarOrigin, isLoopbackHost, sameOrigin } from "./origin.js";
@@ -9,8 +9,11 @@ import { FolderPicker } from "./folderPicker.js";
 
 let mainWindow: BrowserWindow | null = null;
 const controller = new SidecarController();
-const tray = new TrayController(join(import.meta.dirname, "..", "assets", "icon.png"));
-const notifier = new PermissionNotifier();
+const tray = new TrayController(join(import.meta.dirname, "..", "assets", "icon.png"), {
+  create: (iconPath) => new Tray(iconPath),
+  buildMenu: (template) => Menu.buildFromTemplate(template),
+});
+const notifier = new PermissionNotifier((opts) => new Notification(opts));
 const folderPicker = new FolderPicker();
 let currentUrl: string | null = null;
 let sidecarTokenPath: string | null = null;
@@ -138,7 +141,7 @@ ipcMain.on("zb:permission-request", (_evt, notice: PermissionNotice) => {
 // Open folder picker for new session.
 ipcMain.handle("zb:pick-workspace", async () => {
   if (!mainWindow) return null;
-  return folderPicker.pick(mainWindow);
+  return folderPicker.pick(mainWindow, dialog);
 });
 
 ipcMain.on(IPC_CHANNELS.QUIT, async () => {

@@ -1,8 +1,27 @@
 // Native notification for permission requests (S23b).
 // Text-only: only the tool title from the permission card is shown.
 // Nothing from agent output beyond that.
-import { Notification } from "electron";
-import { BrowserWindow } from "electron";
+// The Electron Notification constructor is injected so tests do not load electron.
+
+export interface NoticeWindow {
+  isVisible(): boolean;
+  isFocused(): boolean;
+  show(): void;
+  focus(): void;
+  webContents: { send(channel: string, payload: unknown): void };
+}
+
+export interface ShownNote {
+  on(event: "click", listener: () => void): void;
+  show(): void;
+  close(): void;
+}
+
+export type NoteFactory = (opts: {
+  title: string;
+  body: string;
+  urgency: "critical";
+}) => ShownNote;
 
 export interface PermissionNotice {
   toolTitle: string;
@@ -12,9 +31,11 @@ export interface PermissionNotice {
 
 export class PermissionNotifier {
   private pending: PermissionNotice[] = [];
-  private mainWindow: BrowserWindow | null = null;
+  private mainWindow: NoticeWindow | null = null;
 
-  attach(window: BrowserWindow) {
+  constructor(private readonly notes: NoteFactory) {}
+
+  attach(window: NoticeWindow) {
     this.mainWindow = window;
   }
 
@@ -23,7 +44,6 @@ export class PermissionNotifier {
   onPermissionRequest(notice: PermissionNotice) {
     this.pending.push(notice);
 
-    if (!Notification.isSupported()) return;
     if (this.mainWindow?.isVisible() && this.mainWindow?.isFocused()) {
       // Window is visible: no native notification, the card is on screen.
       return;
@@ -32,7 +52,7 @@ export class PermissionNotifier {
     const title = this.sanitizeText(notice.toolTitle);
     const body = `Permission requested: ${title}`;
 
-    const n = new Notification({
+    const n = this.notes({
       title: "zero-bridge permission",
       body,
       urgency: "critical",

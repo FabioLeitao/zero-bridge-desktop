@@ -1,4 +1,4 @@
-import { ChildProcessByStdio, spawn } from "node:child_process";
+import { type ChildProcessByStdio, spawn } from "node:child_process";
 import { promises as fs, constants as fsConst } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -14,7 +14,19 @@ export interface SidecarOptions {
   tokenDir: string;
   // Optional Unix socket path (from S21). If provided, port is ignored.
   unixSocket?: string;
+  // How long kill() waits between SIGTERM and SIGKILL. Tests pass 0.
+  killGraceMs?: number;
 }
+
+export type SidecarSpawn = (
+  command: string,
+  args: readonly string[],
+  options: {
+    env: NodeJS.ProcessEnv;
+    stdio: ["ignore", "pipe", "pipe"];
+    windowsHide: true;
+  },
+) => ChildProcessByStdio<null, any, any>;
 
 export interface SidecarHandle {
   proc: import("node:child_process").ChildProcessByStdio<null, any, any> | null;
@@ -29,6 +41,8 @@ export interface SidecarHandle {
 
 export class SidecarController {
   private handle: SidecarHandle | null = null;
+
+  constructor(private readonly spawnImpl: SidecarSpawn = spawn) {}
 
   private async findFreePort(): Promise<number> {
     return new Promise((resolve, reject) => {
@@ -76,7 +90,8 @@ export class SidecarController {
     }
 
     const env = sanitizeEnv(process.env);
-    const proc = spawn(bridgeBin, args, {
+    const grace = opts.killGraceMs ?? 500;
+    const proc = this.spawnImpl(bridgeBin, args, {
       env,
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
@@ -93,7 +108,7 @@ export class SidecarController {
         try {
           proc.kill("SIGTERM");
           // Grace period.
-          await new Promise((r) => setTimeout(r, 500));
+          await new Promise((r) => setTimeout(r, grace));
           if (!proc.killed) proc.kill("SIGKILL");
         } finally {
           try {

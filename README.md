@@ -33,23 +33,25 @@ The lockfile audit exception for `sprintf-js` is [docs/AUDIT_EXCEPTION.md](docs/
 
 ## Tests
 
-`npm test` runs the unit suite (81 tests on 2026-10-20). `npm run check` is lint, the audit exception gate, and that suite.
+`npm test` runs the unit suite (97 tests on 2026-10-20). `npm run check` is lint, the audit exception gate, and that suite.
 
 Coverage from `node --test --experimental-test-coverage --import tsx/esm tests/*.test.ts` on 2026-10-20. The plan-phase baseline had `origin.ts` at 100% lines and `sidecar.ts` at about 97% lines / 63% branches. `main`, `preload`, `renderer`, `folderPicker`, `notifications`, `tray`, and the fuses file were absent from that report.
 
 | module | line | branch | functions |
 | --- | ---: | ---: | ---: |
-| loaded files | 97.22% | 87.42% | 88.81% |
-| `ipcGuard.ts` | 97.93% | 81.40% | 100% |
+| loaded files | 96.93% | 88.03% | 88.54% |
+| `ipcGuard.ts` | 97.93% | 82.22% | 100% |
 | `bins.ts` | 100% | 100% | 100% |
-| `shellPolicy.ts` | 93.48% | 85.71% | 83.33% |
+| `shellPolicy.ts` | 100% | 86.67% | 100% |
 | `workspaceRoots.ts` | 100% | 75.00% | 100% |
-| `sidecar.ts` | 100% | 93.06% | 96.30% |
+| `sidecar.ts` | 95.44% | 92.96% | 88.89% |
 | `folderPicker.ts` | 87.01% | 90.91% | 80.00% |
-| `notifications.ts` | 96.77% | 82.35% | 100% |
-| `tray.ts` | 87.23% | 88.89% | 43.75% |
+| `notifications.ts` | 97.98% | 82.35% | 90.91% |
+| `tray.ts` | 87.38% | 88.89% | 41.18% |
 | `origin.ts` | 100% | 86.96% | 83.33% |
 | `electron.fuses.ts` | 100% | 100% | 100% |
+| `childEnv.ts` | 100% | 85.71% | 100% |
+| `listenAddress.ts` | 100% | 92.31% | 100% |
 
 The line goal of 85% holds on those logic modules. `tray.ts` function coverage counts the injected Electron interfaces, which this process never calls.
 
@@ -63,10 +65,10 @@ The e2e suite is `npm run test:e2e` after `npm ci --allow-scripts`. Without the 
 | --- | --- |
 | [#3](https://github.com/FabioLeitao/zero-bridge-desktop/issues/3) IPC | `40ee2a1`, `9ac5adc`, `21a8d8e`, `04f931e`, `fa1f406` |
 | [#4](https://github.com/FabioLeitao/zero-bridge-desktop/issues/4) token | `2f15118` |
-| [#5](https://github.com/FabioLeitao/zero-bridge-desktop/issues/5) sidecar | `93056c9`, `7722495`. Env allowlist and `unix:` listen are still open |
+| [#5](https://github.com/FabioLeitao/zero-bridge-desktop/issues/5) sidecar | `93056c9`, `7722495`, `c02f4f9`, `2fc9e3b` |
 | [#6](https://github.com/FabioLeitao/zero-bridge-desktop/issues/6) shell | `278de5d`, `fa1f406`. Fuse values are locked in `package.json`; a packaged directory was not built here |
-| [#7](https://github.com/FabioLeitao/zero-bridge-desktop/issues/7) workspace | `b06c125`, `21a8d8e` |
-| [#8](https://github.com/FabioLeitao/zero-bridge-desktop/issues/8) tray | `2f7aa7a`. Start-at-login stays unimplemented |
-| [#9](https://github.com/FabioLeitao/zero-bridge-desktop/issues/9) supply | `18a7adf`. Signed auto-update does not exist |
+| [#7](https://github.com/FabioLeitao/zero-bridge-desktop/issues/7) workspace | `b06c125`, `21a8d8e`, `d430374`, `d21d6ee` |
+| [#8](https://github.com/FabioLeitao/zero-bridge-desktop/issues/8) tray | `2f7aa7a`, `38eac54` |
+| [#9](https://github.com/FabioLeitao/zero-bridge-desktop/issues/9) supply | `18a7adf`. Signed auto-update is a design note in [docs/AUTO_UPDATE.md](docs/AUTO_UPDATE.md) |
 | [#10](https://github.com/FabioLeitao/zero-bridge-desktop/issues/10) macOS/Windows | no commit; Linux only |
-| [#11](https://github.com/FabioLeitao/zero-bridge-desktop/issues/11) ops | binaries no longer come from the renderer (`40ee2a1`, `fcf394e`). Config file, redacted logs, and locale strings are still open |
+| [#11](https://github.com/FabioLeitao/zero-bridge-desktop/issues/11) ops | `51ded90`, `e38572b`, `e675eba` |

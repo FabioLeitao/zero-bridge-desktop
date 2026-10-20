@@ -76,13 +76,13 @@ As raízes vêm de `GET /v1/info` com bearer (`src/workspaceRoots.ts`). Lista va
 
 | | |
 | --- | --- |
-| Spoofing | `--listen` é `127.0.0.1:<porta>`. A porta `0` pede uma porta ao SO e não vira `8765`. **Verificado:** `tests/sidecarHealth.test.ts`. |
+| Spoofing | O `--listen` padrão é `127.0.0.1:<porta>`. A porta `0` pede uma porta ao SO e não vira `8765`. Um caminho absoluto `unix:` é opt-in; caminho relativo ou host fora do loopback é recusado. **Verificado:** `tests/sidecarHealth.test.ts`, `tests/listen.test.ts`. |
 | Tampering | `spawn` recebe um array de argv. O token vai em `--token-file`, não como valor de argv. **Verificado:** `tests/token.test.ts` lê o argv gravado. |
 | Vazamento | O login é `POST /v1/login` só em `127.0.0.1`. O cookie é gravado pelo processo principal. **Verificado:** `tests/sessionLogin.test.ts`. O teste unitário não abre o Electron. |
 | Negação de serviço | `/health` é consultado sem token. Stdout não é sinal de saúde. O stderr vira `port-in-use`, `bad-token`, `agent-not-found` ou `crashed`, e a janela mostra esse estado. **Verificado.** |
 | Elevação | `chmod` `0700` e depois `0600`. Falha apaga o diretório e lança erro. **Verificado.** O diretório padrão é `userData/tokens` (`src/tokenDir.ts`). |
 
-`sanitizeEnv` ainda copia `process.env` e só apaga `ZERO_BRIDGE_TOKEN`. Essa herança segue aberta (issue de allowlist de ambiente no desktop). `unixSocket` continua sem leitura. Sair pela bandeja chama `controller.kill` e depois `app.quit` (`tests/tray.test.ts`). `before-quit` é async; o Electron pode sair antes dessa promise. **Suposição.**
+O ambiente do filho é uma allowlist (`src/childEnv.ts`, `tests/childEnv.test.ts`). Linhas gravadas em log perdem o token, `Authorization` e `zb_session` (`src/redactLog.ts`). A classificação ainda lê o stderr cru em memória. Sair pela bandeja chama `controller.kill` e depois `app.quit` (`tests/tray.test.ts`). Iniciar com o login fica desligado salvo `openAtLogin` em `shell-config.json` (`tests/loginItem.test.ts`). `before-quit` é async; o Electron pode sair antes dessa promise. **Suposição.** Um unix socket não tem URL no Chromium, então a janela não abre um proxy TCP na frente dele.
 
 ### Notificações
 
@@ -90,23 +90,28 @@ O preload lê o texto de `section.perm` e envia `zb:permission-request`. O proce
 
 ### Cadeia de suprimento
 
-Não há dependências de produção. `npm audit --omit=dev` está limpo. O lockfile tem um aviso aceito, `GHSA-hp3w-g68c-fv3c` (`sprintf-js@1.1.3`, via `electron-builder`), registrado em [AUDIT_EXCEPTION.pt_BR.md](AUDIT_EXCEPTION.pt_BR.md) com revisão em 2027-01-19. `npm run audit` falha em qualquer outro id. Scripts de instalação ficam desligados, salvo `--allow-scripts`. Não há auto-update. Os alvos Linux são AppImage e deb. macOS e Windows ficam para depois; não são gerados aqui.
+Não há dependências de produção. `npm audit --omit=dev` está limpo. O lockfile tem um aviso aceito, `GHSA-hp3w-g68c-fv3c` (`sprintf-js@1.1.3`, via `electron-builder`), registrado em [AUDIT_EXCEPTION.pt_BR.md](AUDIT_EXCEPTION.pt_BR.md) com revisão em 2027-01-19. `npm run audit` falha em qualquer outro id. Scripts de instalação ficam desligados, salvo `--allow-scripts`. Não há auto-update. O que precisaria existir antes está em [AUTO_UPDATE.pt_BR.md](AUTO_UPDATE.pt_BR.md). Os alvos Linux são AppImage e deb. macOS e Windows ficam para depois; não são gerados aqui.
 
 ## Cobertura (2026-10-20)
 
-`node --test --experimental-test-coverage --import tsx/esm tests/*.test.ts` (81 testes). Linha de base do plano: `origin.ts` 100% de linhas, `sidecar.ts` cerca de 97% de linhas e 63% de ramos. `main`, `preload`, `renderer`, `folderPicker`, `notifications`, `tray` e fuses não estavam naquele relatório.
+`node --test --experimental-test-coverage --import tsx/esm tests/*.test.ts` (97 testes). Linha de base do plano: `origin.ts` 100% de linhas, `sidecar.ts` cerca de 97% de linhas e 63% de ramos. `main`, `preload`, `renderer`, `folderPicker`, `notifications`, `tray` e fuses não estavam naquele relatório.
 
 | módulo | linha | ramo | funções |
 | --- | ---: | ---: | ---: |
-| arquivos carregados | 97,22% | 87,42% | 88,81% |
-| `ipcGuard.ts` | 97,93% | 81,40% | 100% |
+| arquivos carregados | 96,93% | 88,03% | 88,54% |
+| `ipcGuard.ts` | 97,93% | 82,22% | 100% |
 | `bins.ts` | 100% | 100% | 100% |
-| `shellPolicy.ts` | 93,48% | 85,71% | 83,33% |
+| `shellPolicy.ts` | 100% | 86,67% | 100% |
 | `workspaceRoots.ts` | 100% | 75,00% | 100% |
-| `sidecar.ts` | 100% | 93,06% | 96,30% |
+| `sidecar.ts` | 95,44% | 92,96% | 88,89% |
 | `folderPicker.ts` | 87,01% | 90,91% | 80,00% |
-| `notifications.ts` | 96,77% | 82,35% | 100% |
-| `tray.ts` | 87,23% | 88,89% | 43,75% |
+| `notifications.ts` | 97,98% | 82,35% | 90,91% |
+| `tray.ts` | 87,38% | 88,89% | 41,18% |
+| `childEnv.ts` | 100% | 85,71% | 100% |
+| `listenAddress.ts` | 100% | 92,31% | 100% |
+| `shellConfig.ts` | 97,62% | 81,25% | 100% |
+| `redactLog.ts` | 100% | 100% | 100% |
+| `shellLocale.ts` | 100% | 100% | 100% |
 
 `src/main.ts`, `src/preload.ts` e `src/renderer.ts` são cola de Electron ou DOM e não entram na medição. `npm audit --omit=dev` em 2026-10-20 reportou 0 vulnerabilidades. `npm run audit` saiu 0 e imprimiu a exceção do sprintf-js (revisão em 2027-01-19).
 
@@ -118,19 +123,19 @@ Mutantes manuais (uma condição invertida, depois `git checkout --` no arquivo)
 | --- | --- | --- |
 | #3 IPC | `40ee2a1`, `9ac5adc`, `21a8d8e`, `04f931e`, `fa1f406` | um script no frame principal continua sendo esse remetente |
 | #4 token | `2f15118` | |
-| #5 sidecar | `93056c9`, `7722495` | allowlist de ambiente, listen `unix:` |
+| #5 sidecar | `93056c9`, `7722495`, `c02f4f9`, `2fc9e3b` | a janela não carrega um unix socket |
 | #6 shell | `278de5d`, `fa1f406` | fuses não conferidos num pacote gerado |
-| #7 pasta | `b06c125`, `21a8d8e` | |
-| #8 bandeja | `2f7aa7a` | iniciar com o login |
-| #9 suprimento | `18a7adf` | auto-update assinado |
+| #7 pasta | `b06c125`, `21a8d8e`, `d430374`, `d21d6ee` | |
+| #8 bandeja | `2f7aa7a`, `38eac54` | |
+| #9 suprimento | `18a7adf`, `ded6f60` | auto-update assinado é só nota de desenho |
 | #10 macOS/Windows | nenhum | a issue inteira; só Linux |
-| #11 operação | `40ee2a1`, `fcf394e` (binários fora do renderer) | arquivo de config, logs redatados, textos por locale |
+| #11 operação | `51ded90`, `e38572b`, `e675eba` | |
 
 ## Ainda aberto
 
-1. O ambiente do processo filho é herdado, fora `ZERO_BRIDGE_TOKEN`.
-2. O listen é TCP loopback, não o Unix socket do bridge.
-3. Um script no frame principal é um remetente confiável. As regras de payload e a limpeza limitam isso; não tiram essa confiança.
-4. Não há auto-update assinado. Não há pacote macOS nem Windows.
+1. Um script no frame principal é um remetente confiável. As regras de payload e a limpeza limitam isso; não tiram essa confiança.
+2. Os valores dos fuses estão travados no código. Não foram aplicados a um binário empacotado aqui.
+3. O auto-update assinado está descrito em `docs/AUTO_UPDATE.pt_BR.md` e não está implementado. Não há pacote macOS nem Windows.
+4. A janela não tem URL para um unix socket, então esse modo não carrega a UI do bridge.
 5. O sidecar não é reiniciado depois de um crash.
 6. `before-quit` pode não esperar o `kill`.

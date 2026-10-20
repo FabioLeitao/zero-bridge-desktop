@@ -33,23 +33,25 @@ A exceção de auditoria do `sprintf-js` está em [docs/AUDIT_EXCEPTION.pt_BR.md
 
 ## Testes
 
-`npm test` roda a suíte unitária (81 testes em 2026-10-20). `npm run check` é lint, o gate da exceção de auditoria e essa suíte.
+`npm test` roda a suíte unitária (97 testes em 2026-10-20). `npm run check` é lint, o gate da exceção de auditoria e essa suíte.
 
 Cobertura de `node --test --experimental-test-coverage --import tsx/esm tests/*.test.ts` em 2026-10-20. Na linha de base do plano, `origin.ts` estava em 100% de linhas e `sidecar.ts` em cerca de 97% de linhas / 63% de ramos. `main`, `preload`, `renderer`, `folderPicker`, `notifications`, `tray` e o arquivo de fuses estavam fora daquele relatório.
 
 | módulo | linha | ramo | funções |
 | --- | ---: | ---: | ---: |
-| arquivos carregados | 97,22% | 87,42% | 88,81% |
-| `ipcGuard.ts` | 97,93% | 81,40% | 100% |
+| arquivos carregados | 96,93% | 88,03% | 88,54% |
+| `ipcGuard.ts` | 97,93% | 82,22% | 100% |
 | `bins.ts` | 100% | 100% | 100% |
-| `shellPolicy.ts` | 93,48% | 85,71% | 83,33% |
+| `shellPolicy.ts` | 100% | 86,67% | 100% |
 | `workspaceRoots.ts` | 100% | 75,00% | 100% |
-| `sidecar.ts` | 100% | 93,06% | 96,30% |
+| `sidecar.ts` | 95,44% | 92,96% | 88,89% |
 | `folderPicker.ts` | 87,01% | 90,91% | 80,00% |
-| `notifications.ts` | 96,77% | 82,35% | 100% |
-| `tray.ts` | 87,23% | 88,89% | 43,75% |
+| `notifications.ts` | 97,98% | 82,35% | 90,91% |
+| `tray.ts` | 87,38% | 88,89% | 41,18% |
 | `origin.ts` | 100% | 86,96% | 83,33% |
 | `electron.fuses.ts` | 100% | 100% | 100% |
+| `childEnv.ts` | 100% | 85,71% | 100% |
+| `listenAddress.ts` | 100% | 92,31% | 100% |
 
 A meta de 85% de linhas vale nesses módulos de lógica. A cobertura de funções de `tray.ts` conta as interfaces injetadas do Electron, que este processo não chama.
 
@@ -63,10 +65,10 @@ O e2e é `npm run test:e2e` depois de `npm ci --allow-scripts`. Sem o binário, 
 | --- | --- |
 | [#3](https://github.com/FabioLeitao/zero-bridge-desktop/issues/3) IPC | `40ee2a1`, `9ac5adc`, `21a8d8e`, `04f931e`, `fa1f406` |
 | [#4](https://github.com/FabioLeitao/zero-bridge-desktop/issues/4) token | `2f15118` |
-| [#5](https://github.com/FabioLeitao/zero-bridge-desktop/issues/5) sidecar | `93056c9`, `7722495`. Allowlist de ambiente e listen `unix:` seguem abertos |
+| [#5](https://github.com/FabioLeitao/zero-bridge-desktop/issues/5) sidecar | `93056c9`, `7722495`, `c02f4f9`, `2fc9e3b` |
 | [#6](https://github.com/FabioLeitao/zero-bridge-desktop/issues/6) shell | `278de5d`, `fa1f406`. Os fuses estão travados no `package.json`; o diretório empacotado não foi gerado aqui |
-| [#7](https://github.com/FabioLeitao/zero-bridge-desktop/issues/7) pasta | `b06c125`, `21a8d8e` |
-| [#8](https://github.com/FabioLeitao/zero-bridge-desktop/issues/8) bandeja | `2f7aa7a`. Iniciar com o login segue sem implementação |
-| [#9](https://github.com/FabioLeitao/zero-bridge-desktop/issues/9) suprimento | `18a7adf`. Auto-update assinado não existe |
+| [#7](https://github.com/FabioLeitao/zero-bridge-desktop/issues/7) pasta | `b06c125`, `21a8d8e`, `d430374`, `d21d6ee` |
+| [#8](https://github.com/FabioLeitao/zero-bridge-desktop/issues/8) bandeja | `2f7aa7a`, `38eac54` |
+| [#9](https://github.com/FabioLeitao/zero-bridge-desktop/issues/9) suprimento | `18a7adf`. Auto-update assinado é uma nota de desenho em [docs/AUTO_UPDATE.pt_BR.md](docs/AUTO_UPDATE.pt_BR.md) |
 | [#10](https://github.com/FabioLeitao/zero-bridge-desktop/issues/10) macOS/Windows | sem commit; só Linux |
-| [#11](https://github.com/FabioLeitao/zero-bridge-desktop/issues/11) operação | os binários não vêm mais do renderer (`40ee2a1`, `fcf394e`). Arquivo de config, logs redatados e textos por locale seguem abertos |
+| [#11](https://github.com/FabioLeitao/zero-bridge-desktop/issues/11) operação | `51ded90`, `e38572b`, `e675eba` |

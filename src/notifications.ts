@@ -36,7 +36,10 @@ export class PermissionNotifier {
   private pending: PermissionNotice[] = [];
   private mainWindow: NoticeWindow | null = null;
 
-  constructor(private readonly notes: NoteFactory) {}
+  constructor(
+    private readonly notes: NoteFactory,
+    private readonly noteLogPath: () => string | undefined = () => undefined,
+  ) {}
 
   attach(window: NoticeWindow) {
     this.mainWindow = window;
@@ -67,7 +70,7 @@ export class PermissionNotifier {
     });
 
     n.show();
-    const noteLog = process.env.ZB_E2E_NOTE_LOG;
+    const noteLog = this.noteLogPath();
     if (noteLog) appendFileSync(noteLog, body + "\n", { mode: 0o600 });
   }
 

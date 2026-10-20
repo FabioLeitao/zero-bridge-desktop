@@ -13,6 +13,7 @@ import { resolveAllowedBins } from "./bins.js";
 import { defaultTokenDir } from "./tokenDir.js";
 import { fetchWorkspaceRoots } from "./workspaceRoots.js";
 import { cwdForAgent } from "./workspaceLaunch.js";
+import { testHooks } from "./testEnv.js";
 import { rendererLaunchView } from "./launchView.js";
 import {
   denyPagePermission,
@@ -45,7 +46,10 @@ const tray = new TrayController(
     void controller.kill().finally(() => app.quit());
   },
 );
-const notifier = new PermissionNotifier((opts) => new Notification(opts));
+const notifier = new PermissionNotifier(
+  (opts) => new Notification(opts),
+  () => testHooks(process.env, app.isPackaged).noteLog,
+);
 const folderPicker = new FolderPicker();
 let currentUrl: string | null = null;
 let sidecarTokenPath: string | null = null;
@@ -134,12 +138,12 @@ app.on("ready", async () => {
   mainWindow.once("ready-to-show", () => mainWindow?.show());
 
   try {
-    resolveAllowedBins(process.env);
+    resolveAllowedBins(process.env, app.isPackaged);
     await startSidecar(cwdForAgent(undefined, folderPicker.chosen()));
   } catch (err) {
     if (err instanceof SidecarStartError) {
       await showSidecarError(err.state, "the sidecar did not start");
-    } else if (!process.env.ZB_BRIDGE_BIN && !process.env.ZB_E2E_BRIDGE_BIN) {
+    } else if (!process.env.ZB_BRIDGE_BIN && !testHooks(process.env, app.isPackaged).bridgeBin) {
       await showSidecarError("agent-not-found", "the sidecar binaries are not configured");
     } else {
       await showSidecarError("crashed", "the sidecar did not start");
@@ -204,9 +208,10 @@ app.on("before-quit", async () => {
 });
 
 async function startSidecar(workspaceRoot?: string) {
-  const bins = resolveAllowedBins(process.env);
-  const port = ephemeralPort(process.env.ZB_E2E_PORT);
-  const tokenFromEnv = process.env.ZB_E2E_TOKEN_FILE;
+  const hooks = testHooks(process.env, app.isPackaged);
+  const bins = resolveAllowedBins(process.env, app.isPackaged);
+  const port = ephemeralPort(hooks.port);
+  const tokenFromEnv = hooks.tokenFile;
   const tokenDir = tokenFromEnv
     ? String(tokenFromEnv).replace(/token\.txt$/, "")
     : defaultTokenDir(app.getPath("userData"));

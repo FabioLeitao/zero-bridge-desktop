@@ -4,6 +4,36 @@ Desktop shell for zero-bridge. The Electron main process starts the Go bridge as
 
 **Português (Brasil):** [README.pt_BR.md](README.pt_BR.md)
 
+## Linux package
+
+This repository builds a Linux AppImage and a deb. It does not build a macOS or Windows package.
+
+`npm run dist` writes `dist/packages/zero-bridge-0.1.0-alpha.AppImage`, `dist/packages/zero-bridge-desktop_0.1.0-alpha_amd64.deb`, `dist/packages/SHA256SUMS.txt`, and `dist/packages/sbom-YYYY-MM-DD.json`. Nothing publishes those files. There is no auto-update channel. Signed update stays a design note in [docs/AUTO_UPDATE.md](docs/AUTO_UPDATE.md).
+
+A person who already has the files checks them and starts the shell:
+
+```bash
+sha256sum -c SHA256SUMS.txt
+chmod +x zero-bridge-0.1.0-alpha.AppImage
+./zero-bridge-0.1.0-alpha.AppImage
+```
+
+The deb installs with `sudo apt install ./zero-bridge-desktop_0.1.0-alpha_amd64.deb`. The control file version is `0.1.0~alpha`. Declared dependencies and the checksum steps are in [docs/INSTALL.md](docs/INSTALL.md).
+
+The package does not contain the Go bridge or an agent. The shell starts those from `bridgeBin` and `agentBin` in `shell-config.json`. Without those paths the window still opens and the sidecar does not start.
+
+A clean checkout produces the files. electron-builder downloads `fpm-1.17.0-ruby-3.4.3-linux-amd64.7z` and `appimage-12.0.1.7z` from `electron-userland/electron-builder-binaries` into its own cache. It does not install them globally.
+
+```bash
+npm ci --ignore-scripts=false
+npm run build
+npm run dist
+```
+
+`npm run check` does not build the package. `.github/workflows/check.yml` does not either.
+
+`npm run verify:linux-package` extracts the AppImage, runs that binary under Xvfb, and reads the deb with `dpkg-deb` without installing it. `HOME` and `XDG_RUNTIME_DIR` are temporary directories. The packaged process ignores `ZB_E2E_*`; the script writes `shell-config.json` in a temporary user-data directory. Set `ZB_BRIDGE_SRC` to the bridge module. This command is not part of `npm run check`.
+
 ## Run (dev)
 
 ```bash

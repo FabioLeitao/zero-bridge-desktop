@@ -4,6 +4,36 @@ Shell desktop do zero-bridge. O processo principal do Electron sobe o bridge em 
 
 **English:** [README.md](README.md)
 
+## Pacote Linux
+
+Este repositório gera um AppImage e um deb de Linux. Não gera pacote de macOS nem de Windows.
+
+`npm run dist` escreve `dist/packages/zero-bridge-0.1.0-alpha.AppImage`, `dist/packages/zero-bridge-desktop_0.1.0-alpha_amd64.deb`, `dist/packages/SHA256SUMS.txt` e `dist/packages/sbom-AAAA-MM-DD.json`. Nada publica esses arquivos. Não há canal de auto-atualização. A atualização assinada continua só como nota em [docs/AUTO_UPDATE.pt_BR.md](docs/AUTO_UPDATE.pt_BR.md).
+
+Quem já tem os arquivos confere e abre o shell:
+
+```bash
+sha256sum -c SHA256SUMS.txt
+chmod +x zero-bridge-0.1.0-alpha.AppImage
+./zero-bridge-0.1.0-alpha.AppImage
+```
+
+O deb instala com `sudo apt install ./zero-bridge-desktop_0.1.0-alpha_amd64.deb`. A versão no controle é `0.1.0~alpha`. As dependências declaradas e os passos do checksum estão em [docs/INSTALL.pt_BR.md](docs/INSTALL.pt_BR.md).
+
+O pacote não traz o bridge em Go nem um agente. O shell sobe esses binários a partir de `bridgeBin` e `agentBin` em `shell-config.json`. Sem esses caminhos a janela ainda abre e o sidecar não sobe.
+
+Um checkout limpo produz os arquivos. O electron-builder baixa `fpm-1.17.0-ruby-3.4.3-linux-amd64.7z` e `appimage-12.0.1.7z` de `electron-userland/electron-builder-binaries` para o cache dele. Não instala essas ferramentas no sistema.
+
+```bash
+npm ci --ignore-scripts=false
+npm run build
+npm run dist
+```
+
+`npm run check` não gera o pacote. `.github/workflows/check.yml` também não.
+
+`npm run verify:linux-package` extrai o AppImage, roda esse binário sob o Xvfb e lê o deb com `dpkg-deb` sem instalar. `HOME` e `XDG_RUNTIME_DIR` ficam em diretórios temporários. O processo empacotado ignora `ZB_E2E_*`; o script grava `shell-config.json` num user-data temporário. Defina `ZB_BRIDGE_SRC` com o módulo da bridge. Esse comando não entra em `npm run check`.
+
 ## Rodar (dev)
 
 ```bash

@@ -29,7 +29,7 @@ import { PermissionNotifier, PermissionNotice } from "./notifications.js";
 import { FolderPicker } from "./folderPicker.js";
 import { loginItemSettings } from "./loginItem.js";
 import { loginOverUnix, unixInfo, unixProtocolResponse, UNIX_PAGE_ORIGIN } from "./unixPage.js";
-import { readShellConfig, type ShellConfig } from "./shellConfig.js";
+import { agentArgsForLaunch, readShellConfig, type ShellConfig } from "./shellConfig.js";
 import { shellLocale, shellStrings } from "./shellLocale.js";
 
 let mainWindow: BrowserWindow | null = null;
@@ -267,7 +267,7 @@ async function startSidecar(workspaceRoot?: string) {
     workspaceRoot,
     unixSocket: shellConfig.unixSocket,
     passEnv: shellConfig.passEnv,
-    agentArgs: shellConfig.agentArgs,
+    agentArgs: agentArgsForLaunch(shellConfig.agentArgs),
     profile: shellConfig.profile,
     packaged: app.isPackaged,
     healthTimeoutMs: 15000,

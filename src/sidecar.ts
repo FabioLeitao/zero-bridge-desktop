@@ -7,6 +7,7 @@ import { createServer } from "node:net";
 import { request as httpRequest } from "node:http";
 import { SidecarState } from "./types.js";
 import { childEnv } from "./childEnv.js";
+import { agentArgsForLaunch } from "./shellConfig.js";
 import { listenAddress, unixHealthRequest } from "./listenAddress.js";
 
 export interface SidecarOptions {
@@ -27,7 +28,7 @@ export interface SidecarOptions {
   probeUnix?: (socketPath: string) => Promise<boolean>;
   // Extra environment names from shell config. Values come from this process.
   passEnv?: readonly string[];
-  // Agent argv from shell config. Absent means no --agent-arg.
+  // Agent argv from shell config. Absent means --agent-arg acp. An empty list means none.
   agentArgs?: readonly string[];
   // Bridge profile from shell config. Absent means no --profile.
   profile?: string;
@@ -152,7 +153,7 @@ export class SidecarController {
     }
 
     const args = ["--listen", listen, "--agent-cmd", agentBin];
-    for (const arg of opts.agentArgs ?? []) {
+    for (const arg of agentArgsForLaunch(opts.agentArgs)) {
       args.push("--agent-arg", arg);
     }
     if (opts.profile) args.push("--profile", opts.profile);

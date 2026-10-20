@@ -3,6 +3,11 @@ import { refusedEnvName } from "./childEnv.js";
 
 export const AGENT_ARG_MAX = 256;
 export const PROFILE_MAX = 32;
+const DEFAULT_AGENT_ARGS = ["acp"];
+
+export function agentArgsForLaunch(agentArgs: readonly string[] | undefined): readonly string[] {
+  return agentArgs ?? DEFAULT_AGENT_ARGS;
+}
 
 export interface ShellConfig {
   bridgeBin?: string;

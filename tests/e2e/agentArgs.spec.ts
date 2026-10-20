@@ -17,6 +17,25 @@ test.beforeEach(() => {
   test.skip(!electronReady(), "Electron binary missing. Run npm ci --allow-scripts, then npm run test:e2e.");
 });
 
+test("an omitted agentArgs list launches with --agent-arg acp", async () => {
+  const userData = await mkdtemp(join(tmpdir(), "zb-agent-default-"));
+  writeFileSync(join(userData, "shell-config.json"), "{}\n");
+  const { app } = await launchApp({}, { userDataDir: userData });
+  try {
+    const pid = app.process().pid;
+    if (!pid) throw new Error("electron pid missing");
+    const fields = sidecarArgv(pid);
+    const args: string[] = [];
+    for (let i = 0; i < fields.length - 1; i++) {
+      if (fields[i] === "--agent-arg") args.push(fields[i + 1]);
+    }
+    expect(args).toEqual(["acp"]);
+  } finally {
+    await app.close();
+    await rm(userData, { recursive: true, force: true });
+  }
+});
+
 test("shell config agent arguments and profile reach the sidecar command line", async () => {
   const userData = await mkdtemp(join(tmpdir(), "zb-agent-args-"));
   writeFileSync(

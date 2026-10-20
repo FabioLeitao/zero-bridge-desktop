@@ -28,7 +28,7 @@ O arquivo fica em `userData/shell-config.json`. O renderer não define esses cam
 | Campo | Forma | Lançamento |
 | --- | --- | --- |
 | `bridgeBin`, `agentBin` | string não vazia | caminhos absolutos que o processo principal confere |
-| `agentArgs` | lista de strings | cada item é um `--agent-arg`. O item tem de ter de 1 a 256 caracteres e não pode conter quebra de linha nem NUL. Ausente significa nenhum `--agent-arg` |
+| `agentArgs` | lista de strings | cada item é um `--agent-arg`. O item tem de ter de 1 a 256 caracteres e não pode conter quebra de linha nem NUL. Ausente significa `--agent-arg acp`; uma lista vazia significa nenhum |
 | `profile` | string | de 1 a 32 caracteres em `[a-z0-9-]`, passado como `--profile` quando definido |
 | `passEnv` | lista de nomes | nomes de ambiente que o sidecar pode herdar |
 | `unixSocket` | caminho absoluto | escuta nesse socket em vez de TCP |

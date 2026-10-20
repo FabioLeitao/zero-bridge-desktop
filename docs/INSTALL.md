@@ -28,7 +28,7 @@ The file lives at `userData/shell-config.json`. The renderer cannot set these fi
 | Field | Shape | Launch |
 | --- | --- | --- |
 | `bridgeBin`, `agentBin` | non-empty string | absolute paths the main process checks |
-| `agentArgs` | list of strings | each item is one `--agent-arg`. An item must be 1–256 characters and must not contain a newline or a NUL. Omitted means no `--agent-arg` |
+| `agentArgs` | list of strings | each item is one `--agent-arg`. An item must be 1–256 characters and must not contain a newline or a NUL. Omitted means `--agent-arg acp`; an empty list means none |
 | `profile` | string | 1–32 characters matching `[a-z0-9-]`, passed as `--profile` when set |
 | `passEnv` | list of names | environment names the sidecar may inherit |
 | `unixSocket` | absolute path | listen on that socket instead of TCP |

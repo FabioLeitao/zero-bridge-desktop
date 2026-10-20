@@ -3,7 +3,14 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AGENT_ARG_MAX, PROFILE_MAX, loadShellConfig, parseShellConfig, readShellConfig } from "../src/shellConfig.js";
+import {
+  AGENT_ARG_MAX,
+  PROFILE_MAX,
+  agentArgsForLaunch,
+  loadShellConfig,
+  parseShellConfig,
+  readShellConfig,
+} from "../src/shellConfig.js";
 import { errorPageHtml } from "../src/errorPage.js";
 import { configBinaryAllowed, resolveAllowedBins } from "../src/bins.js";
 
@@ -72,6 +79,13 @@ describe("shell config", () => {
     const cfg = parseShellConfig(JSON.stringify({ locale: "en" }));
     assert.equal(cfg.agentArgs, undefined);
     assert.equal(cfg.profile, undefined);
+    assert.deepEqual(agentArgsForLaunch(cfg.agentArgs), ["acp"]);
+  });
+
+  it("keeps an explicit empty agent argument list empty", () => {
+    const cfg = parseShellConfig(JSON.stringify({ agentArgs: [] }));
+    assert.deepEqual(cfg.agentArgs, []);
+    assert.deepEqual(agentArgsForLaunch(cfg.agentArgs), []);
   });
 
   it("refuses an agent argument with a newline, a NUL, or over the length limit", () => {

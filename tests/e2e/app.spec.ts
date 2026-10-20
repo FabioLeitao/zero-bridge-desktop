@@ -89,7 +89,8 @@ test("records a sanitized notification when the window is hidden", async () => {
   await app.evaluate(async ({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0]?.hide();
   });
-  await window.locator("#send").click();
+  // A hidden window is not actionable. The click still has to reach the page.
+  await window.locator("#send").evaluate((el) => (el as HTMLButtonElement).click());
   await expect.poll(async () => {
     try {
       return await readFile(noteLog, "utf8");

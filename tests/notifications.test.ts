@@ -1,5 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { PermissionNotifier } from "../src/notifications.js";
 import { IPC_CHANNELS } from "../src/types.js";
 
@@ -42,6 +45,30 @@ describe("PermissionNotifier", () => {
     });
     notifier.onPermissionRequest({ toolTitle: "read", sessionId: "s", reqId: "r" });
     assert.equal(shown, 0);
+  });
+
+  it("records the note when the native notification throws", () => {
+    const dir = mkdtempSync(join(tmpdir(), "zb-note-"));
+    const path = join(dir, "notes.txt");
+    const hidden = {
+      isVisible: () => false,
+      isFocused: () => false,
+      show() {},
+      focus() {},
+      webContents: { send() {} },
+    };
+    try {
+      const notifier = new PermissionNotifier(() => {
+        throw new Error("Failed to show notification sekret-token-value");
+      }, () => path);
+      notifier.attach(hidden);
+      notifier.onPermissionRequest({ toolTitle: "write", sessionId: "s", reqId: "r" });
+      const body = readFileSync(path, "utf8");
+      assert.match(body, /write/);
+      assert.equal(body.includes("sekret-token-value"), false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("focuses the window from the notification click", () => {

@@ -13,6 +13,7 @@ import { IPC_CHANNELS, SidecarState } from "./types.js";
 import { IpcRejected, acceptIncoming, SenderRef } from "./ipcGuard.js";
 import { ipcLog } from "./ipcLog.js";
 import { bundledBridgePath, resolveAllowedBins } from "./bins.js";
+import { bridgePinPath, bridgeStartLogLine, readOptionalBridgePin } from "./bridgePin.js";
 import { appendRedactedLog } from "./redactLog.js";
 import { PRIVATE_DIR_MODE, claimPrivateDir, shellPaths, type ShellPaths } from "./paths.js";
 import { fetchWorkspaceRoots } from "./workspaceRoots.js";
@@ -298,6 +299,9 @@ app.on("before-quit", (event) => {
 async function startSidecar(workspaceRoot?: string) {
   const hooks = testHooks(process.env, app.isPackaged);
   const bins = allowedBins();
+  const bundled = app.isPackaged ? bundledBridgePath(process.resourcesPath) : undefined;
+  const pinText = readOptionalBridgePin(bridgePinPath(app.isPackaged, process.resourcesPath, import.meta.dirname));
+  storeShellLog(bridgeStartLogLine(bins.bridgeBin, bundled, pinText));
   const port = ephemeralPort(hooks.port);
   const tokenFromEnv = hooks.tokenFile;
   const tokenDir = tokenFromEnv

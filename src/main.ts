@@ -14,7 +14,7 @@ import { IpcRejected, acceptIncoming, SenderRef } from "./ipcGuard.js";
 import { ipcLog } from "./ipcLog.js";
 import { bundledBridgePath, resolveAllowedBins } from "./bins.js";
 import { bridgePinPath, bridgeStartLogLine, readOptionalBridgePin } from "./bridgePin.js";
-import { appendRedactedLog } from "./redactLog.js";
+import { writeShellLog } from "./redactLog.js";
 import { PRIVATE_DIR_MODE, claimPrivateDir, shellPaths, type ShellPaths } from "./paths.js";
 import { fetchWorkspaceRoots } from "./workspaceRoots.js";
 import { approvedWorkspace } from "./workspaceLaunch.js";
@@ -87,7 +87,7 @@ function allowedBins() {
 function storeShellLog(line: string): void {
   console.error(line);
   try {
-    appendRedactedLog(requireDirs().logFile, line);
+    writeShellLog(requireDirs().logFile, line, sidecarToken);
   } catch (err) {
     console.error(err instanceof Error ? err.message : "shell log failed");
   }

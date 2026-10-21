@@ -41,6 +41,7 @@ jobs:
       # verify-linux-package.mjs calls xwininfo.
       - run: sudo apt-get update && sudo apt-get install -y x11-utils
       - run: npm ci --ignore-scripts=false
+      - run: npm run build
       - run: npm run dist
       - run: xvfb-run -a npm run verify:linux-package
       - uses: actions/upload-artifact@v4

@@ -1,10 +1,13 @@
 // Proves the Linux packages in dist/packages. Not part of npm run check.
 // xvfb-run -a node scripts/verify-linux-package.mjs
-// A packaged app ignores ZB_E2E_*. The sidecar binaries come from shell-config.json.
+// The package carries the bridge. This script builds only cmd/acpfake from the
+// pinned commit, into a temp directory. It does not read ZB_BRIDGE_SRC.
 
 import { execFileSync, spawn } from "node:child_process";
 import {
+  accessSync,
   chmodSync,
+  constants,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -15,6 +18,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { readPin, withBridgeCheckout } from "./bridge-source.mjs";
 
 if (typeof process.getuid === "function" && process.getuid() === 0) {
   console.error("refusing to run as root");
@@ -26,6 +30,7 @@ if (!process.env.DISPLAY) {
 }
 
 const root = process.cwd();
+const pin = readPin(root);
 const packagesDir = join(root, "dist", "packages");
 const names = readdirSync(packagesDir);
 const appImage = names.find((name) => name.endsWith(".AppImage"));
@@ -42,8 +47,10 @@ console.log(info.trim());
 const contents = execFileSync("dpkg-deb", ["-c", join(packagesDir, deb)], { encoding: "utf8" });
 const contentLines = contents.split("\n").filter((line) => line.length > 0);
 const executable = contentLines.filter((line) => line.endsWith("zero-bridge-desktop"));
+const bundledDeb = contentLines.filter((line) => line.includes("resources/bridge/zero-bridge"));
 console.log(`deb-files=${contentLines.length}`);
 console.log(executable.join("\n"));
+console.log(bundledDeb.join("\n"));
 
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const depends = info.split("\n").find((line) => line.includes("Depends:")) ?? "";
@@ -57,6 +64,10 @@ if (executable.length === 0) {
   console.error("deb does not contain zero-bridge-desktop");
   process.exit(1);
 }
+if (bundledDeb.length !== 1 || !bundledDeb[0].trim().split(/\s+/)[0].includes("x")) {
+  console.error("deb does not contain an executable resources/bridge/zero-bridge");
+  process.exit(1);
+}
 
 const sboms = names.filter((name) => name.startsWith("sbom-") && name.endsWith(".json"));
 if (sboms.length !== 1) {
@@ -68,23 +79,34 @@ if (sbom.bomFormat !== "CycloneDX") {
   console.error("SBOM is not CycloneDX");
   process.exit(1);
 }
-console.log(`sbom=${sboms[0]} components=${sbom.components.length}`);
+const bridgeComponent = sbom.components.find((item) => item.name === "zero-bridge" && item.version === pin);
+const goModules = sbom.components.filter((item) => typeof item.purl === "string" && item.purl.startsWith("pkg:golang/"));
+if (!bridgeComponent || goModules.length === 0 || !goModules.some((item) => item.version === pin)) {
+  console.error("SBOM is missing the bundled bridge or its Go modules");
+  process.exit(1);
+}
+console.log(`sbom=${sboms[0]} components=${sbom.components.length} bridge=${pin} go-modules=${goModules.length}`);
 
-const moduleDir = bridgeModule(root);
 const work = mkdtempSync(join(tmpdir(), "zbd-linux-pkg-"));
 let app = null;
 try {
-  const bridgeBin = join(work, "zero-bridge");
   const agentBin = join(work, "acpfake");
-  const goEnv = { ...process.env, GOFLAGS: "-buildvcs=false" };
-  execFileSync("go", ["build", "-o", bridgeBin, "./cmd/zero-bridge"], { cwd: moduleDir, env: goEnv });
-  execFileSync("go", ["build", "-o", agentBin, "./cmd/acpfake"], { cwd: moduleDir, env: goEnv });
-  chmodSync(bridgeBin, 0o755);
+  withBridgeCheckout(root, ({ moduleDir }) => {
+    execFileSync("go", ["build", "-trimpath", "-o", agentBin, "./cmd/acpfake"], {
+      cwd: moduleDir,
+      env: { ...process.env, GOFLAGS: "-buildvcs=false" },
+      stdio: "inherit",
+    });
+  });
   chmodSync(agentBin, 0o755);
 
   execFileSync(resolve(packagesDir, appImage), ["--appimage-extract"], { cwd: work });
   const binary = join(work, "squashfs-root", "zero-bridge-desktop");
+  const bundled = join(work, "squashfs-root", "resources", "bridge", "zero-bridge");
   if (!existsSync(binary)) throw new Error(`extracted binary missing: ${binary}`);
+  accessSync(bundled, constants.X_OK);
+  const packedPin = readFileSync(join(work, "squashfs-root", "resources", "bridge", "bridge.sha"), "utf8").trim();
+  if (packedPin !== pin) throw new Error(`packaged bridge pin ${packedPin} does not match ${pin}`);
 
   const home = join(work, "home");
   const runtime = join(work, "runtime");
@@ -92,10 +114,7 @@ try {
   mkdirSync(home, { mode: 0o700 });
   mkdirSync(runtime, { mode: 0o700 });
   mkdirSync(userData, { mode: 0o700 });
-  writeFileSync(
-    join(userData, "shell-config.json"),
-    `${JSON.stringify({ bridgeBin, agentBin })}\n`,
-  );
+  writeFileSync(join(userData, "shell-config.json"), `${JSON.stringify({ agentBin })}\n`);
 
   const env = {
     PATH: process.env.PATH ?? "",
@@ -126,13 +145,15 @@ try {
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 500));
     if (app.exitCode !== null) break;
     windowLine = windowTitle();
-    sidecar = findSidecar(app.pid, bridgeBin);
+    sidecar = findSidecar(app.pid, bundled);
     if (windowLine && sidecar) break;
   }
 
   console.log(windowLine || "window=missing");
   console.log(sidecar || "sidecar=missing");
-  if (!windowLine || !sidecar) {
+  const startLine = log.split("\n").find((line) => line.includes("sidecar start bridge")) ?? "";
+  console.log(startLine || "start-line=missing");
+  if (!windowLine || !sidecar || !startLine.includes(pin)) {
     console.error(log.trim());
     console.error(`work=${work}`);
     process.exitCode = 1;
@@ -151,18 +172,6 @@ try {
       /* already gone */
     }
   }
-}
-
-function bridgeModule(repoRoot) {
-  const candidates = [
-    process.env.ZB_BRIDGE_SRC,
-    join(repoRoot, "zero-bridge", "bridge"),
-    join(repoRoot, "..", "zero-bridge", "bridge"),
-  ].filter((dir) => typeof dir === "string" && dir.length > 0);
-  for (const dir of candidates) {
-    if (existsSync(join(dir, "cmd", "zero-bridge"))) return dir;
-  }
-  throw new Error("set ZB_BRIDGE_SRC to the bridge module");
 }
 
 function windowTitle() {

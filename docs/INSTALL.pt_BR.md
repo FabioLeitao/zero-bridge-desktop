@@ -1,10 +1,12 @@
 # zero-bridge-desktop — Instalação e Segurança
 
+**English:** [INSTALL.md](INSTALL.md)
+
 ## Instalação (Linux)
 
 Os nomes abaixo vêm de `package.json` `version` `0.1.0-alpha`. O controle do deb grava essa versão como `0.1.0~alpha`. Nada neste repositório publica os arquivos. Não há canal de auto-atualização.
 
-O pacote não traz o bridge em Go nem um agente. Depois que o shell abre, `shell-config.json` fornece `bridgeBin` e `agentBin`. Sem esses caminhos a janela abre e o sidecar não sobe.
+O pacote traz o bridge em Go e não traz um agente. O `npm run dist` lê o único commit em `bridge.sha`, busca esse commit, confere o `git rev-parse` com esse SHA e compila `cmd/zero-bridge` com `go build -trimpath` e `GOFLAGS=-buildvcs=false`. O binário fica em `resources/bridge/zero-bridge` dentro do AppImage e em `/opt/zero-bridge/resources/bridge/zero-bridge` depois da instalação do deb. Um app empacotado usa esse caminho, a menos que `shell-config.json` defina `bridgeBin`. A linha de log da partida é `sidecar start bridge` seguida do SHA fixado. O SBOM lista essa bridge e as versões dos módulos Go do mesmo commit. Sem `agentBin` a janela abre e o sidecar não sobe.
 
 ### AppImage (recomendado, sem instalação)
 
@@ -34,7 +36,8 @@ O arquivo fica em `userData/shell-config.json`. O renderer não define esses cam
 
 | Campo | Forma | Lançamento |
 | --- | --- | --- |
-| `bridgeBin`, `agentBin` | string não vazia | caminhos absolutos que o processo principal confere |
+| `bridgeBin` | string não vazia, opcional | caminho absoluto que sobrepõe a bridge embarcada. Ausente num pacote, vale `resources/bridge/zero-bridge` |
+| `agentBin` | string não vazia | caminho absoluto do agente. O pacote não inclui um |
 | `agentArgs` | lista de strings | cada item é um `--agent-arg`. O item tem de ter de 1 a 256 caracteres e não pode conter quebra de linha nem NUL. Ausente significa `--agent-arg acp`; uma lista vazia significa nenhum |
 | `profile` | string | de 1 a 32 caracteres em `[a-z0-9-]`, passado como `--profile` quando definido |
 | `passEnv` | lista de nomes | nomes de ambiente que o sidecar pode herdar |
@@ -50,6 +53,16 @@ A suíte de ponta a ponta compila `cmd/acpfake` como agente. Esse binário é um
 {
   "agentArgs": ["acp", "e2e-marker"],
   "profile": "generic"
+}
+```
+
+Esta config sobe o Zero como agente. `zero acp` é o servidor do Agent Client Protocol, então `agentArgs` é `acp`. O `profile` `zero` é o perfil da bridge para esse agente. `agentBin` precisa ser um arquivo regular seu, sem ser symlink, e sem permissão de escrita para o grupo ou para os outros. Se o `zero` no `PATH` for um symlink, use o arquivo alvo. Sem `agentArgs`, o shell ainda passa `--agent-arg acp`.
+
+```json
+{
+  "agentBin": "/usr/local/bin/zero",
+  "agentArgs": ["acp"],
+  "profile": "zero"
 }
 ```
 

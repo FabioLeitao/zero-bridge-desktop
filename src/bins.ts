@@ -1,6 +1,6 @@
 // Binaries the main process may spawn. The renderer never supplies these paths.
 import { accessSync, constants, lstatSync } from "node:fs";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { testHooks } from "./testEnv.js";
 import type { ShellConfig } from "./shellConfig.js";
 
@@ -9,13 +9,19 @@ export interface AllowedBins {
   agentBin: string;
 }
 
+export function bundledBridgePath(resourcesPath: string): string {
+  return join(resourcesPath, "bridge", "zero-bridge");
+}
+
 export function resolveAllowedBins(
   env: NodeJS.ProcessEnv,
   packaged = false,
   config?: Pick<ShellConfig, "bridgeBin" | "agentBin">,
+  bundledBridge?: string,
 ): AllowedBins {
   const hooks = testHooks(env, packaged);
-  const bridge = first(config?.bridgeBin, env.ZB_BRIDGE_BIN, hooks.bridgeBin);
+  // shell-config and ZB_BRIDGE_BIN still win. The bundled path is the packaged default.
+  const bridge = first(config?.bridgeBin, env.ZB_BRIDGE_BIN, hooks.bridgeBin, packaged ? bundledBridge : undefined);
   const agent = first(config?.agentBin, env.ZB_AGENT_BIN, hooks.agentBin);
   if (!bridge || !agent) throw new Error("binaries are not configured");
   const bridgeBin = resolve(bridge);

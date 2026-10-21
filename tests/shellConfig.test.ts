@@ -12,7 +12,7 @@ import {
   readShellConfig,
 } from "../src/shellConfig.js";
 import { errorPageHtml } from "../src/errorPage.js";
-import { configBinaryAllowed, resolveAllowedBins } from "../src/bins.js";
+import { bundledBridgePath, configBinaryAllowed, resolveAllowedBins } from "../src/bins.js";
 
 describe("shell config", () => {
   it("reads bins, unix socket, login, and locale from a local file", async () => {
@@ -147,5 +147,28 @@ describe("shell config", () => {
     chmodSync(bridge, 0o777);
     chmodSync(agent, 0o755);
     assert.throws(() => resolveAllowedBins({}, false, { bridgeBin: bridge, agentBin: agent }));
+  });
+
+  it("uses the bundled bridge when a packaged app has no bridge override", () => {
+    assert.equal(bundledBridgePath("/app/resources"), join("/app/resources", "bridge", "zero-bridge"));
+    const bins = resolveAllowedBins({ ZB_AGENT_BIN: process.execPath }, true, {}, process.execPath);
+    assert.equal(bins.bridgeBin, process.execPath);
+    assert.equal(bins.agentBin, process.execPath);
+    assert.throws(() => resolveAllowedBins({}, true, {}, process.execPath));
+    assert.throws(() => resolveAllowedBins({ ZB_AGENT_BIN: process.execPath }, false, {}, process.execPath));
+  });
+
+  it("lets shell config override the bundled bridge", () => {
+    const dir = mkdtempSync(join(tmpdir(), "zb-bundle-"));
+    const bridge = join(dir, "bridge");
+    writeFileSync(bridge, "");
+    chmodSync(bridge, 0o755);
+    const bins = resolveAllowedBins(
+      { ZB_AGENT_BIN: process.execPath },
+      true,
+      { bridgeBin: bridge },
+      process.execPath,
+    );
+    assert.equal(bins.bridgeBin, bridge);
   });
 });

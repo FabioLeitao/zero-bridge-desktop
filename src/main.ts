@@ -12,7 +12,7 @@ import { loadWindowBounds, saveWindowBounds } from "./windowBounds.js";
 import { IPC_CHANNELS, SidecarState } from "./types.js";
 import { IpcRejected, acceptIncoming, SenderRef } from "./ipcGuard.js";
 import { ipcLog } from "./ipcLog.js";
-import { resolveAllowedBins } from "./bins.js";
+import { bundledBridgePath, resolveAllowedBins } from "./bins.js";
 import { appendRedactedLog } from "./redactLog.js";
 import { PRIVATE_DIR_MODE, claimPrivateDir, shellPaths, type ShellPaths } from "./paths.js";
 import { fetchWorkspaceRoots } from "./workspaceRoots.js";
@@ -72,6 +72,15 @@ let dirs: ShellPaths | null = null;
 function requireDirs(): ShellPaths {
   if (!dirs) throw new Error("userData required");
   return dirs;
+}
+
+function allowedBins() {
+  return resolveAllowedBins(
+    process.env,
+    app.isPackaged,
+    shellConfig,
+    app.isPackaged ? bundledBridgePath(process.resourcesPath) : undefined,
+  );
 }
 
 function storeShellLog(line: string): void {
@@ -210,7 +219,7 @@ async function continueStartup() {
   app.setLoginItemSettings(loginItemSettings(shellConfig.openAtLogin));
 
   try {
-    resolveAllowedBins(process.env, app.isPackaged, shellConfig);
+    allowedBins();
     await startSidecar(await approvedWorkspace(folderPicker.roots(), folderPicker.chosen()));
   } catch (err) {
     if (err instanceof SidecarStartError) {
@@ -288,7 +297,7 @@ app.on("before-quit", (event) => {
 
 async function startSidecar(workspaceRoot?: string) {
   const hooks = testHooks(process.env, app.isPackaged);
-  const bins = resolveAllowedBins(process.env, app.isPackaged, shellConfig);
+  const bins = allowedBins();
   const port = ephemeralPort(hooks.port);
   const tokenFromEnv = hooks.tokenFile;
   const tokenDir = tokenFromEnv

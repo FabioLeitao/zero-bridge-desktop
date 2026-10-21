@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, chmodSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -13,6 +13,7 @@ import {
 } from "../src/shellConfig.js";
 import { errorPageHtml } from "../src/errorPage.js";
 import { bundledBridgePath, configBinaryAllowed, resolveAllowedBins } from "../src/bins.js";
+import { executable } from "./executable.js";
 
 describe("shell config", () => {
   it("reads bins, unix socket, login, and locale from a local file", async () => {
@@ -151,24 +152,82 @@ describe("shell config", () => {
 
   it("uses the bundled bridge when a packaged app has no bridge override", () => {
     assert.equal(bundledBridgePath("/app/resources"), join("/app/resources", "bridge", "zero-bridge"));
-    const bins = resolveAllowedBins({ ZB_AGENT_BIN: process.execPath }, true, {}, process.execPath);
-    assert.equal(bins.bridgeBin, process.execPath);
-    assert.equal(bins.agentBin, process.execPath);
-    assert.throws(() => resolveAllowedBins({}, true, {}, process.execPath));
-    assert.throws(() => resolveAllowedBins({ ZB_AGENT_BIN: process.execPath }, false, {}, process.execPath));
+    const dir = mkdtempSync(join(tmpdir(), "zb-bundle-default-"));
+    chmodSync(dir, 0o700);
+    const bin = executable(dir, "bundled", 0o755);
+    const bins = resolveAllowedBins({ ZB_AGENT_BIN: bin }, true, {}, bin);
+    assert.equal(bins.bridgeBin, bin);
+    assert.equal(bins.agentBin, bin);
+    assert.throws(() => resolveAllowedBins({}, true, {}, bin));
+    assert.throws(() => resolveAllowedBins({ ZB_AGENT_BIN: bin }, false, {}, bin));
   });
 
   it("lets shell config override the bundled bridge", () => {
     const dir = mkdtempSync(join(tmpdir(), "zb-bundle-"));
-    const bridge = join(dir, "bridge");
-    writeFileSync(bridge, "");
-    chmodSync(bridge, 0o755);
-    const bins = resolveAllowedBins(
-      { ZB_AGENT_BIN: process.execPath },
-      true,
-      { bridgeBin: bridge },
-      process.execPath,
-    );
+    chmodSync(dir, 0o700);
+    const bridge = executable(dir, "bridge", 0o755);
+    const agent = executable(dir, "agent", 0o755);
+    const bundled = executable(dir, "bundled", 0o755);
+    const bins = resolveAllowedBins({ ZB_AGENT_BIN: agent }, true, { bridgeBin: bridge }, bundled);
     assert.equal(bins.bridgeBin, bridge);
+  });
+
+  it("refuses a group-writable binary named by ZB_BRIDGE_BIN", () => {
+    const dir = mkdtempSync(join(tmpdir(), "zb-env-mode-"));
+    const bridge = executable(dir, "bridge", 0o775);
+    const agent = executable(dir, "agent", 0o755);
+    assert.throws(
+      () => resolveAllowedBins({ ZB_BRIDGE_BIN: bridge, ZB_AGENT_BIN: agent }, false),
+      /writable by the group or others/,
+    );
+  });
+
+  it("accepts a symlink to a valid binary and uses the target", () => {
+    const dir = mkdtempSync(join(tmpdir(), "zb-env-link-"));
+    const bridge = executable(dir, "bridge", 0o755);
+    const agent = executable(dir, "agent", 0o755);
+    const link = join(dir, "bridge-link");
+    symlinkSync(bridge, link);
+    const bins = resolveAllowedBins({ ZB_BRIDGE_BIN: link, ZB_AGENT_BIN: agent }, false);
+    assert.equal(bins.bridgeBin, bridge);
+    assert.equal(bins.agentBin, agent);
+  });
+
+  it("refuses an environment binary whose parent directory others can write", () => {
+    const root = mkdtempSync(join(tmpdir(), "zb-env-parent-"));
+    const parent = join(root, "open");
+    mkdirSync(parent);
+    chmodSync(parent, 0o777);
+    const bridge = executable(parent, "bridge", 0o755);
+    const agent = executable(root, "agent", 0o755);
+    assert.throws(
+      () => resolveAllowedBins({ ZB_BRIDGE_BIN: bridge, ZB_AGENT_BIN: agent }, false),
+      /directory is writable by others/,
+    );
+  });
+
+  it("refuses a symlink when the target or its directory fails the check", () => {
+    const dir = mkdtempSync(join(tmpdir(), "zb-env-bad-link-"));
+    const agent = executable(dir, "agent", 0o755);
+    const loose = executable(dir, "loose", 0o775);
+    const looseLink = join(dir, "loose-link");
+    symlinkSync(loose, looseLink);
+    assert.throws(
+      () => resolveAllowedBins({ ZB_BRIDGE_BIN: looseLink, ZB_AGENT_BIN: agent }, false),
+      /writable by the group or others/,
+    );
+
+    const root = mkdtempSync(join(tmpdir(), "zb-env-bad-parent-"));
+    const parent = join(root, "open");
+    mkdirSync(parent);
+    chmodSync(parent, 0o777);
+    const bridge = executable(parent, "bridge", 0o755);
+    const link = join(root, "bridge-link");
+    symlinkSync(bridge, link);
+    const safeAgent = executable(root, "agent", 0o755);
+    assert.throws(
+      () => resolveAllowedBins({ ZB_BRIDGE_BIN: link, ZB_AGENT_BIN: safeAgent }, false),
+      /directory is writable by others/,
+    );
   });
 });

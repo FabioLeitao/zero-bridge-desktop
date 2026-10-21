@@ -24,7 +24,8 @@ export interface SidecarOptions {
   // How long to wait for GET /health. A timeout of 0 skips the wait.
   healthTimeoutMs?: number;
   // Test double. The default probe fetches the URL and does not send the token.
-  probeHealth?: (url: string) => Promise<boolean>;
+  // The signal aborts before the health deadline, so one probe cannot outlive it.
+  probeHealth?: (url: string, signal?: AbortSignal) => Promise<boolean>;
   // Unix health probe. The default uses the socket path and GET /health, with no headers.
   probeUnix?: (socketPath: string) => Promise<boolean>;
   // Extra environment names from shell config. Values come from this process.
@@ -52,8 +53,8 @@ export function classifySidecarFailure(stderr: string): SidecarState {
   return "crashed";
 }
 
-async function defaultHealthProbe(url: string): Promise<boolean> {
-  const res = await fetch(url);
+async function defaultHealthProbe(url: string, signal?: AbortSignal): Promise<boolean> {
+  const res = await fetch(url, { signal });
   return res.ok;
 }
 
@@ -206,16 +207,6 @@ export class SidecarController {
         code === 0 ? "stopped" : signal ? "crashed" : "crashed";
     });
 
-    // Very small health poll: first 5s we expect the child to be up.
-    handle.pollHandle = setInterval(async () => {
-      if (!handle.proc || handle.proc.killed) {
-        handle.state = "crashed";
-        return;
-      }
-      // NOTE: a real check would probe /health using the token.
-      // For unit tests we rely on the stdout lines below.
-    }, 250);
-
     const stderrChunks: Buffer[] = [];
     proc.stdout?.on("data", () => {
       // Stdout is not a health signal. /health is.
@@ -230,16 +221,25 @@ export class SidecarController {
     const healthUrl = `http://127.0.0.1:${port}/health`;
     const deadline = Date.now() + timeout;
     while (timeout > 0 && Date.now() < deadline && handle.state === "starting") {
+      const remaining = deadline - Date.now();
+      if (remaining <= 1) break;
+      // Shorter than the time left, so this probe returns before the deadline.
+      const probeMs = remaining - 1;
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), probeMs);
       try {
-        const healthy = opts.unixSocket ? await probeUnix(opts.unixSocket) : await probe(healthUrl);
+        const healthy = await probeWithin(opts.unixSocket ? probeUnix(opts.unixSocket) : probe(healthUrl, ac.signal), probeMs);
         if (healthy) {
           handle.state = "running";
           break;
         }
       } catch {
-        // The probe failed. Wait for the next try or the deadline.
+        // The probe failed or the abort fired. Wait for the next try or the deadline.
+      } finally {
+        clearTimeout(timer);
       }
-      await new Promise((r) => setTimeout(r, 20));
+      const pause = Math.min(20, deadline - Date.now());
+      if (pause > 0) await new Promise((r) => setTimeout(r, pause));
     }
     if (handle.state === "starting") {
       handle.state = classifySidecarFailure(Buffer.concat(stderrChunks).toString("utf8"));
@@ -267,6 +267,22 @@ function removeTokenDir(dir: string) {
   } catch {
     // Already gone.
   }
+}
+
+function probeWithin(pending: Promise<boolean>, ms: number): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => resolve(false), ms);
+    pending.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
 }
 
 async function mustExistAndExecutable(p: string): Promise<void> {

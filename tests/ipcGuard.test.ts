@@ -1,8 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { chmodSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { IPC_CHANNELS } from "../src/types.js";
 import { IpcRejected, acceptIncoming } from "../src/ipcGuard.js";
 import { resolveAllowedBins } from "../src/bins.js";
+import { executable } from "./executable.js";
 
 const origin = "http://127.0.0.1:9/";
 const expected = { webContentsId: 4, frameRoutingId: 8, frameUrl: origin };
@@ -81,12 +85,15 @@ describe("ipc rejection", () => {
 
 describe("binary allowlist", () => {
   it("resolves only the main-process env paths", () => {
+    const dir = mkdtempSync(join(tmpdir(), "zb-ipc-bins-"));
+    chmodSync(dir, 0o700);
+    const bin = executable(dir, "bridge", 0o755);
     const bins = resolveAllowedBins({
-      ZB_BRIDGE_BIN: process.execPath,
-      ZB_AGENT_BIN: process.execPath,
+      ZB_BRIDGE_BIN: bin,
+      ZB_AGENT_BIN: bin,
     });
-    assert.equal(bins.bridgeBin, process.execPath);
-    assert.equal(bins.agentBin, process.execPath);
+    assert.equal(bins.bridgeBin, bin);
+    assert.equal(bins.agentBin, bin);
   });
 
   it("rejects a missing binary", () => {

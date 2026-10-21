@@ -13,6 +13,7 @@ import {
 } from "../src/shellConfig.js";
 import { errorPageHtml } from "../src/errorPage.js";
 import { bundledBridgePath, configBinaryAllowed, resolveAllowedBins } from "../src/bins.js";
+import { executable } from "./executable.js";
 
 describe("shell config", () => {
   it("reads bins, unix socket, login, and locale from a local file", async () => {
@@ -151,24 +152,23 @@ describe("shell config", () => {
 
   it("uses the bundled bridge when a packaged app has no bridge override", () => {
     assert.equal(bundledBridgePath("/app/resources"), join("/app/resources", "bridge", "zero-bridge"));
-    const bins = resolveAllowedBins({ ZB_AGENT_BIN: process.execPath }, true, {}, process.execPath);
-    assert.equal(bins.bridgeBin, process.execPath);
-    assert.equal(bins.agentBin, process.execPath);
-    assert.throws(() => resolveAllowedBins({}, true, {}, process.execPath));
-    assert.throws(() => resolveAllowedBins({ ZB_AGENT_BIN: process.execPath }, false, {}, process.execPath));
+    const dir = mkdtempSync(join(tmpdir(), "zb-bundle-default-"));
+    chmodSync(dir, 0o700);
+    const bin = executable(dir, "bundled", 0o755);
+    const bins = resolveAllowedBins({ ZB_AGENT_BIN: bin }, true, {}, bin);
+    assert.equal(bins.bridgeBin, bin);
+    assert.equal(bins.agentBin, bin);
+    assert.throws(() => resolveAllowedBins({}, true, {}, bin));
+    assert.throws(() => resolveAllowedBins({ ZB_AGENT_BIN: bin }, false, {}, bin));
   });
 
   it("lets shell config override the bundled bridge", () => {
     const dir = mkdtempSync(join(tmpdir(), "zb-bundle-"));
-    const bridge = join(dir, "bridge");
-    writeFileSync(bridge, "");
-    chmodSync(bridge, 0o755);
-    const bins = resolveAllowedBins(
-      { ZB_AGENT_BIN: process.execPath },
-      true,
-      { bridgeBin: bridge },
-      process.execPath,
-    );
+    chmodSync(dir, 0o700);
+    const bridge = executable(dir, "bridge", 0o755);
+    const agent = executable(dir, "agent", 0o755);
+    const bundled = executable(dir, "bundled", 0o755);
+    const bins = resolveAllowedBins({ ZB_AGENT_BIN: agent }, true, { bridgeBin: bridge }, bundled);
     assert.equal(bins.bridgeBin, bridge);
   });
 
@@ -231,10 +231,3 @@ describe("shell config", () => {
     );
   });
 });
-
-function executable(dir: string, name: string, mode: number): string {
-  const path = join(dir, name);
-  writeFileSync(path, "");
-  chmodSync(path, mode);
-  return path;
-}

@@ -16,6 +16,8 @@ chmod +x zero-bridge-0.1.0-alpha.AppImage
 ./zero-bridge-0.1.0-alpha.AppImage
 ```
 
+No Ubuntu 24.04 ou mais novo, o sistema restringe user namespaces sem privilégio. O AppImage extraído não traz perfil AppArmor, então ele não abre com o sandbox nessa configuração. Prefira o deb: o `postinst` instala o perfil AppArmor e, quando não há user namespaces, faz `chmod 4755` em `chrome-sandbox`. Para o AppImage, o operador libera com `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`. Esse valor vale para o sistema inteiro e não permanece depois de reiniciar. A outra saída é instalar um perfil AppArmor próprio.
+
 ### Debian/Ubuntu (.deb)
 
 `dpkg-deb -I` informa `Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libatspi2.0-0, libuuid1, libsecret-1-0` e `Recommends: libappindicator3-1`. O executável é `/opt/zero-bridge/zero-bridge-desktop`.
@@ -98,7 +100,7 @@ npm run build
 npm run test:e2e
 ```
 
-No npm 11 e no npm 12 essa exceção ainda roda só `electron@41.10.6`. Os outros pacotes com script de instalação estão `false` em `allowScripts`. O Node 22.23.3 traz o npm 10.9.9, que ignora esse campo e roda todos os scripts de instalação. O CI instala o npm 12.2.0 e depois usa este mesmo comando (`.github/workflows/check.yml`).
+No npm 11 e no npm 12 essa exceção ainda roda só `electron@41.10.6`. Os outros pacotes com script de instalação estão `false` em `allowScripts`. O Node 22.23.3 traz o npm 10.9.9, que ignora esse campo e roda todos os scripts de instalação. O CI instala o npm 12.2.0 e depois usa este mesmo comando (`.github/workflows/check.yml` e `.github/workflows/package.yml`).
 
 A suíte compila `cmd/zero-bridge` e `cmd/acpfake` do módulo Go. Defina `ZB_BRIDGE_SRC` com o diretório desse módulo, ou deixe o bridge em `./zero-bridge` ou `../zero-bridge`.
 

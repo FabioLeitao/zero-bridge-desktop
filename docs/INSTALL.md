@@ -16,6 +16,8 @@ chmod +x zero-bridge-0.1.0-alpha.AppImage
 ./zero-bridge-0.1.0-alpha.AppImage
 ```
 
+On Ubuntu 24.04 or newer, the system restricts unprivileged user namespaces. The extracted AppImage has no AppArmor profile, so it does not open with the sandbox in that configuration. Prefer the deb: its `postinst` installs the AppArmor profile and, when user namespaces are unavailable, runs `chmod 4755` on `chrome-sandbox`. For the AppImage, the operator can allow namespaces with `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`. That setting applies to the whole system and does not persist across reboot. The other option is to install an AppArmor profile of your own.
+
 ### Debian/Ubuntu (.deb)
 
 `dpkg-deb -I` reports `Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libatspi2.0-0, libuuid1, libsecret-1-0` and `Recommends: libappindicator3-1`. The executable is `/opt/zero-bridge/zero-bridge-desktop`.

@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
+import { createServer, type AddressInfo, type Socket } from "node:net";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -82,6 +83,45 @@ describe("sidecar health", () => {
       (err: unknown) => err instanceof SidecarStartError && err.state === "agent-not-found",
     );
     assert.equal(spawned, false);
+  });
+
+  it("fails startup within healthTimeoutMs when a listener accepts and stays silent", { timeout: 2000 }, async () => {
+    const sockets = new Set<Socket>();
+    const server = createServer((socket) => {
+      // Accept the TCP connection and write nothing.
+      sockets.add(socket);
+      socket.on("close", () => sockets.delete(socket));
+    });
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+    const port = (server.address() as AddressInfo).port;
+    const child = new FakeChild();
+    const spawnImpl: SidecarSpawn = () => child as unknown as ReturnType<SidecarSpawn>;
+    const ctrl = new SidecarController(spawnImpl);
+    const budget = 400;
+    const started = Date.now();
+    try {
+      const handle = await ctrl.launch({
+        bridgeBin: process.execPath,
+        agentBin: process.execPath,
+        port,
+        tokenDir: join(tmpdir(), "zb-silent-" + randomUUID()),
+        killGraceMs: 0,
+        healthTimeoutMs: budget,
+      });
+      const elapsed = Date.now() - started;
+      // Directory and token setup run before the health wait, and the abort timer can fire a little late.
+      // A probe that never returns used to sit past this bound until the test timeout.
+      assert.ok(elapsed < budget + 300, `elapsed ${elapsed}ms; health wait exceeded ${budget}ms`);
+      assert.equal(handle.state, "crashed");
+      assert.equal(handle.pollHandle, undefined);
+      await ctrl.kill();
+    } finally {
+      for (const socket of sockets) socket.destroy();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 
   it("escapes the error page", () => {

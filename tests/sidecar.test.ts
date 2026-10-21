@@ -190,12 +190,13 @@ describe("SidecarController branches", () => {
     assert.equal(child.killed, true);
   });
 
-  it("marks crashed from the poll when the child is already killed", async () => {
+  it("does not keep a poll timer after the health wait", async () => {
     const child = new FakeChild();
     const { ctrl, handle } = await launchFake(child);
+    assert.equal(handle.pollHandle, undefined);
     child.killed = true;
     await new Promise((r) => setTimeout(r, 300));
-    assert.equal(handle.state, "crashed");
+    assert.equal(handle.state, "running");
     await ctrl.kill();
   });
 

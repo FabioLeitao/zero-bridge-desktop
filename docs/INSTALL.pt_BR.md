@@ -98,7 +98,7 @@ npm run build
 npm run test:e2e
 ```
 
-No npm 11 e no npm 12 essa exceção ainda roda só `electron@41.10.6`. Os outros pacotes com script de instalação estão `false` em `allowScripts`. O Node 22.23.3 traz o npm 10.9.9, que ignora esse campo e roda todos os scripts de instalação. O CI instala o npm 12.2.0 e depois usa este mesmo comando (`.github/workflows/check.yml`).
+No npm 11 e no npm 12 essa exceção ainda roda só `electron@41.10.6`. Os outros pacotes com script de instalação estão `false` em `allowScripts`. O Node 22.23.3 traz o npm 10.9.9, que ignora esse campo e roda todos os scripts de instalação. O CI instala o npm 12.2.0 e depois usa este mesmo comando (`.github/workflows/check.yml` e `.github/workflows/package.yml`).
 
 A suíte compila `cmd/zero-bridge` e `cmd/acpfake` do módulo Go. Defina `ZB_BRIDGE_SRC` com o diretório desse módulo, ou deixe o bridge em `./zero-bridge` ou `../zero-bridge`.
 

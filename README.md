@@ -30,7 +30,7 @@ npm run build
 npm run dist
 ```
 
-`npm run check` does not build the package. `.github/workflows/check.yml` does not either.
+`npm run check` does not build the package. `.github/workflows/check.yml` does not either, and that job keeps its current steps. `.github/workflows/package.yml` runs `npm run dist` and `xvfb-run -a npm run verify:linux-package` on pushes to `main`, every Monday at 07:00 UTC, on `workflow_dispatch`, and on pull requests that change that workflow, `bridge.sha`, `package.json`, `scripts/`, or `src/`. It uploads `SHA256SUMS.txt` and `sbom-*.json`. The first run on GitHub is the proof that the job works.
 
 `npm run verify:linux-package` extracts the AppImage, runs that binary under Xvfb, and reads the deb with `dpkg-deb` without installing it. `HOME` and `XDG_RUNTIME_DIR` are temporary directories. The packaged process ignores `ZB_E2E_*`. The script writes `shell-config.json` with `agentBin` only, builds `cmd/acpfake` from the pinned commit into a temp directory, and does not read `ZB_BRIDGE_SRC`. This command is not part of `npm run check`.
 

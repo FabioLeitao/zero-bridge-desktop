@@ -14,8 +14,9 @@
     "lint": "tsc --noEmit",
     "audit": "node scripts/audit-exception.mjs",
     "check": "npm run lint && npm run audit && npm test",
-    "dist": "electron-builder --linux && node scripts/checksums.mjs && node scripts/sbom.mjs",
-    "dist:dir": "electron-builder --linux dir",
+    "build:bridge": "node scripts/build-bridge.mjs",
+    "dist": "npm run build:bridge && electron-builder --linux && node scripts/checksums.mjs && node scripts/sbom.mjs",
+    "dist:dir": "npm run build:bridge && electron-builder --linux dir",
     "verify:package": "npm run dist:dir && node scripts/verify-fuses.mjs",
     "verify:linux-package": "xvfb-run -a node scripts/verify-linux-package.mjs"
   },
@@ -57,6 +58,14 @@
         "to": "assets",
         "filter": [
           "**/*"
+        ]
+      },
+      {
+        "from": "dist/bridge",
+        "to": "bridge",
+        "filter": [
+          "zero-bridge",
+          "bridge.sha"
         ]
       }
     ],

@@ -45,6 +45,24 @@ export class SidecarStartError extends Error {
   }
 }
 
+// The pinned bridge ignores an unknown flag. An older binary would start and
+// stay up after the shell is killed. Refuse that binary before spawn.
+export class BridgeFlagError extends Error {
+  constructor() {
+    super("bridge does not support --exit-with-parent");
+    this.name = "BridgeFlagError";
+  }
+}
+
+const exitWithParentMarker = Buffer.from("--exit-with-parent");
+
+export async function executableSupportsExitWithParent(path: string): Promise<boolean> {
+  const st = await fs.stat(path);
+  if (!st.isFile() || st.size > 32 * 1024 * 1024) return false;
+  const buf = await fs.readFile(path);
+  return buf.includes(exitWithParentMarker);
+}
+
 export function classifySidecarFailure(stderr: string): SidecarState {
   const text = stderr.toLowerCase();
   if (text.includes("eaddrinuse") || text.includes("address already in use")) return "port-in-use";
@@ -134,6 +152,12 @@ export class SidecarController {
     } catch {
       throw new SidecarStartError("agent-not-found");
     }
+    // Unit tests inject a spawn. They do not point at a real bridge binary.
+    if (process.platform === "linux" && this.spawnImpl === spawn) {
+      if (!(await executableSupportsExitWithParent(bridgeBin))) {
+        throw new BridgeFlagError();
+      }
+    }
 
     listenAddress({ port: opts.port, unixSocket: opts.unixSocket });
     // Resolve ephemeral port if 0. A unix socket does not bind a TCP port.
@@ -162,6 +186,7 @@ export class SidecarController {
       args.push("--agent-arg", arg);
     }
     if (opts.profile) args.push("--profile", opts.profile);
+    if (process.platform === "linux") args.push("--exit-with-parent");
     args.push("--token-file", tokenPath, "--permission-timeout", "60s");
 
     if (opts.workspaceRoot) {

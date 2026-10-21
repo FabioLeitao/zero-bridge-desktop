@@ -32,6 +32,8 @@ zero-bridge-desktop
 
 The desktop app starts the **zero-bridge** Go binary as a sidecar. The default listen is an ephemeral loopback port. After `GET /health` succeeds, the shell logs in, stores the `zb_session` cookie, and loads `http://127.0.0.1:<port>/`. When `shell-config.json` sets an absolute `unixSocket`, the bridge does not listen on TCP. The shell logs in and loads the UI through that socket (`zb://bridge/`) and does not open a TCP proxy. The bridge still creates the socket at mode `0600`.
 
+On Linux the shell passes `--exit-with-parent`. If that Electron process is killed, the bridge exits and removes the unix socket. A `bridgeBin` whose file does not contain the flag is refused before it starts. The window shows `bridge does not support --exit-with-parent`.
+
 ## shell-config.json
 
 The file lives at `userData/shell-config.json`. The renderer cannot set these fields. A bad value aborts startup and the error page shows the cause, not the file body.

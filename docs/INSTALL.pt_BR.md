@@ -32,6 +32,8 @@ zero-bridge-desktop
 
 O app desktop inicia o binário **zero-bridge** (Go) como sidecar. O listen padrão é uma porta loopback efêmera. Depois que `GET /health` responde, o shell faz login, grava o cookie `zb_session` e carrega `http://127.0.0.1:<porta>/`. Quando `shell-config.json` define um `unixSocket` absoluto, a bridge não escuta TCP. O shell faz login e carrega a UI por esse socket (`zb://bridge/`) e não abre um proxy TCP. A bridge continua criando o socket no modo `0600`.
 
+No Linux o shell passa `--exit-with-parent`. Se esse processo do Electron é morto, a bridge sai e apaga o socket unix. Um `bridgeBin` cujo arquivo não contém a flag é recusado antes de subir. A janela mostra `bridge does not support --exit-with-parent`.
+
 ## shell-config.json
 
 O arquivo fica em `userData/shell-config.json`. O renderer não define esses campos. Um valor inválido aborta a partida e a página de erro mostra a causa, não o corpo do arquivo.

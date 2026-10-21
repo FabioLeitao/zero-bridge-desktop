@@ -43,6 +43,9 @@ jobs:
       - run: npm ci --ignore-scripts=false
       - run: npm run build
       - run: npm run dist
+      # Runner only. The extracted AppImage has no AppArmor profile; the deb
+      # postinst installs one. This lets the sandbox use user namespaces.
+      - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: xvfb-run -a npm run verify:linux-package
       - uses: actions/upload-artifact@v4
         with:

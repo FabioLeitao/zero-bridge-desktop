@@ -20,7 +20,7 @@ chmod +x zero-bridge-0.1.0-alpha.AppImage
 
 The deb installs with `sudo apt install ./zero-bridge-desktop_0.1.0-alpha_amd64.deb`. The control file version is `0.1.0~alpha`. Declared dependencies and the checksum steps are in [docs/INSTALL.md](docs/INSTALL.md).
 
-The package does not contain the Go bridge or an agent. The shell starts those from `bridgeBin` and `agentBin` in `shell-config.json`. Without those paths the window still opens and the sidecar does not start.
+The package contains the Go bridge and does not contain an agent. `npm run dist` builds `cmd/zero-bridge` from the commit in `bridge.sha` and ships it as `resources/bridge/zero-bridge`. A packaged app starts that binary unless `shell-config.json` sets `bridgeBin`. The agent stays `agentBin`. Without an agent path the window still opens and the sidecar does not start. One working Zero config is in [docs/INSTALL.md](docs/INSTALL.md). The start log line names the pin (`sidecar start bridge` and the commit).
 
 A clean checkout produces the files. electron-builder downloads `fpm-1.17.0-ruby-3.4.3-linux-amd64.7z` and `appimage-12.0.1.7z` from `electron-userland/electron-builder-binaries` into its own cache. It does not install them globally.
 
@@ -32,7 +32,7 @@ npm run dist
 
 `npm run check` does not build the package. `.github/workflows/check.yml` does not either.
 
-`npm run verify:linux-package` extracts the AppImage, runs that binary under Xvfb, and reads the deb with `dpkg-deb` without installing it. `HOME` and `XDG_RUNTIME_DIR` are temporary directories. The packaged process ignores `ZB_E2E_*`; the script writes `shell-config.json` in a temporary user-data directory. Set `ZB_BRIDGE_SRC` to the bridge module. This command is not part of `npm run check`.
+`npm run verify:linux-package` extracts the AppImage, runs that binary under Xvfb, and reads the deb with `dpkg-deb` without installing it. `HOME` and `XDG_RUNTIME_DIR` are temporary directories. The packaged process ignores `ZB_E2E_*`. The script writes `shell-config.json` with `agentBin` only, builds `cmd/acpfake` from the pinned commit into a temp directory, and does not read `ZB_BRIDGE_SRC`. This command is not part of `npm run check`.
 
 ## Run (dev)
 
@@ -65,7 +65,7 @@ The lockfile audit exception for `sprintf-js` is [docs/AUDIT_EXCEPTION.md](docs/
 
 ## Tests
 
-`npm test` runs the unit suite (97 tests on 2026-10-20). `npm run check` is lint, the audit exception gate, and that suite. `npm run verify:package` builds an unpacked Linux directory and compares its Electron fuse wire with `src/electron.fuses.ts`. It is not part of `npm run check`.
+`npm test` runs the unit suite (131 tests on 2026-10-20). `npm run check` is lint, the audit exception gate, and that suite. `npm run verify:package` builds an unpacked Linux directory and compares its Electron fuse wire with `src/electron.fuses.ts`. It is not part of `npm run check`.
 
 Coverage from `node --test --experimental-test-coverage --import tsx/esm tests/*.test.ts` on 2026-10-20. The plan-phase baseline had `origin.ts` at 100% lines and `sidecar.ts` at about 97% lines / 63% branches. `main`, `preload`, `renderer`, `folderPicker`, `notifications`, `tray`, and the fuses file were absent from that report.
 

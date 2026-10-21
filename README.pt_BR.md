@@ -20,7 +20,7 @@ chmod +x zero-bridge-0.1.0-alpha.AppImage
 
 O deb instala com `sudo apt install ./zero-bridge-desktop_0.1.0-alpha_amd64.deb`. A versão no controle é `0.1.0~alpha`. As dependências declaradas e os passos do checksum estão em [docs/INSTALL.pt_BR.md](docs/INSTALL.pt_BR.md).
 
-O pacote não traz o bridge em Go nem um agente. O shell sobe esses binários a partir de `bridgeBin` e `agentBin` em `shell-config.json`. Sem esses caminhos a janela ainda abre e o sidecar não sobe.
+O pacote traz o bridge em Go e não traz um agente. O `npm run dist` compila `cmd/zero-bridge` a partir do commit em `bridge.sha` e embarca o binário como `resources/bridge/zero-bridge`. Um app empacotado sobe esse binário, a menos que `shell-config.json` defina `bridgeBin`. O agente continua em `agentBin`. Sem o caminho do agente a janela ainda abre e o sidecar não sobe. Uma config do Zero que funciona está em [docs/INSTALL.pt_BR.md](docs/INSTALL.pt_BR.md). A linha de log da partida nomeia o SHA fixado (`sidecar start bridge` e o commit).
 
 Um checkout limpo produz os arquivos. O electron-builder baixa `fpm-1.17.0-ruby-3.4.3-linux-amd64.7z` e `appimage-12.0.1.7z` de `electron-userland/electron-builder-binaries` para o cache dele. Não instala essas ferramentas no sistema.
 
@@ -32,7 +32,7 @@ npm run dist
 
 `npm run check` não gera o pacote. `.github/workflows/check.yml` também não.
 
-`npm run verify:linux-package` extrai o AppImage, roda esse binário sob o Xvfb e lê o deb com `dpkg-deb` sem instalar. `HOME` e `XDG_RUNTIME_DIR` ficam em diretórios temporários. O processo empacotado ignora `ZB_E2E_*`; o script grava `shell-config.json` num user-data temporário. Defina `ZB_BRIDGE_SRC` com o módulo da bridge. Esse comando não entra em `npm run check`.
+`npm run verify:linux-package` extrai o AppImage, roda esse binário sob o Xvfb e lê o deb com `dpkg-deb` sem instalar. `HOME` e `XDG_RUNTIME_DIR` ficam em diretórios temporários. O processo empacotado ignora `ZB_E2E_*`. O script grava `shell-config.json` só com `agentBin`, compila `cmd/acpfake` a partir do commit fixado num diretório temporário e não lê `ZB_BRIDGE_SRC`. Esse comando não entra em `npm run check`.
 
 ## Rodar (dev)
 
@@ -65,7 +65,7 @@ A exceção de auditoria do `sprintf-js` está em [docs/AUDIT_EXCEPTION.pt_BR.md
 
 ## Testes
 
-`npm test` roda a suíte unitária (97 testes em 2026-10-20). `npm run check` é lint, o gate da exceção de auditoria e essa suíte. `npm run verify:package` gera um diretório Linux desempacotado e compara o fuse wire do Electron com `src/electron.fuses.ts`. Esse comando não entra em `npm run check`.
+`npm test` roda a suíte unitária (131 testes em 2026-10-20). `npm run check` é lint, o gate da exceção de auditoria e essa suíte. `npm run verify:package` gera um diretório Linux desempacotado e compara o fuse wire do Electron com `src/electron.fuses.ts`. Esse comando não entra em `npm run check`.
 
 Cobertura de `node --test --experimental-test-coverage --import tsx/esm tests/*.test.ts` em 2026-10-20. Na linha de base do plano, `origin.ts` estava em 100% de linhas e `sidecar.ts` em cerca de 97% de linhas / 63% de ramos. `main`, `preload`, `renderer`, `folderPicker`, `notifications`, `tray` e o arquivo de fuses estavam fora daquele relatório.
 

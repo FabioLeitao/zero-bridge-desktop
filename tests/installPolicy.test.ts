@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const root = join(import.meta.dirname, "..");
-const APPROVED = ["electron@41.10.6"];
+const APPROVED = ["electron@44.9.3"];
 
 describe("install script policy", () => {
   it("allows only the reviewed packages and keeps ignore-scripts", () => {

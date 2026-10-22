@@ -18,7 +18,8 @@
     "dist": "npm run build:bridge && electron-builder --linux && node scripts/checksums.mjs && node scripts/sbom.mjs",
     "dist:dir": "npm run build:bridge && electron-builder --linux dir",
     "verify:package": "npm run dist:dir && node scripts/verify-fuses.mjs",
-    "verify:linux-package": "xvfb-run -a node scripts/verify-linux-package.mjs"
+    "verify:linux-package": "xvfb-run -a node scripts/verify-linux-package.mjs",
+    "postinstall": "node node_modules/electron/install.js"
   },
   "allowScripts": {
     "electron@44.9.3": true,

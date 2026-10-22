@@ -5,11 +5,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { cleanupHarness, electronReady, launchApp, prepareHarness, tokenDirectory } from "./harness.js";
 
-// Parent death (SIGKILL of Electron) is a gap. The bridge exits on SIGINT and
-// SIGTERM only. It does not read stdin, and the shell spawns it with stdin
-// ignored, so a closed pipe does not stop it. The unix socket is unlinked in
-// Shutdown, which that signal runs. A killed parent does not deliver the
-// signal. That behavior belongs in the bridge, not in this shell.
+// A normal quit sends SIGTERM. SIGKILL of the Electron main process does not.
+// On Linux the shell passes --exit-with-parent, so the bridge exits on its own
+// and Shutdown unlinks the unix socket. The test below kills only the pid it
+// launched.
 
 test.beforeAll(async () => {
   await prepareHarness();
@@ -46,6 +45,36 @@ test("app.close stops the sidecar and removes the socket and token directory", a
     await expect.poll(() => existsSync(socketPath), { timeout: 10000 }).toBe(false);
     await expect.poll(() => existsSync(tokenDir), { timeout: 10000 }).toBe(false);
   } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test("SIGKILL of the shell stops the bridge and removes the socket", async () => {
+  test.setTimeout(60000);
+  const scratch = await mkdtemp(join(tmpdir(), "zb-orphan-"));
+  const userDataDir = join(scratch, "user");
+  const socketPath = join(scratch, "bridge.sock");
+  const home = join(scratch, "home");
+  await mkdir(userDataDir);
+  await mkdir(home);
+  await writeFile(join(userDataDir, "shell-config.json"), JSON.stringify({ unixSocket: socketPath }));
+  const { app } = await launchApp({}, { userDataDir, home });
+  const electronPid = app.process().pid;
+  try {
+    if (!electronPid) throw new Error("electron pid missing");
+    const sidecar = sidecarOf(app);
+    const cmdline = procCmdline(sidecar.pid);
+    expect(cmdline).toContain("--listen");
+    expect(cmdline).toContain("--exit-with-parent");
+    expect(existsSync(`/proc/${sidecar.pid}`)).toBe(true);
+    expect(existsSync(socketPath)).toBe(true);
+    process.kill(electronPid, "SIGKILL");
+    await expect.poll(() => existsSync(`/proc/${sidecar.pid}`), { timeout: 5000 }).toBe(false);
+    await expect.poll(() => existsSync(socketPath), { timeout: 5000 }).toBe(false);
+  } finally {
+    if (electronPid && existsSync(`/proc/${electronPid}`)) {
+      await app.close().catch(() => undefined);
+    }
     await rm(scratch, { recursive: true, force: true });
   }
 });

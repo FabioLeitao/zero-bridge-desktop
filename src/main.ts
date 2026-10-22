@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { SidecarController, SidecarStartError } from "./sidecar.js";
+import { BridgeFlagError, SidecarController, SidecarStartError } from "./sidecar.js";
 import { ephemeralPort } from "./listenPort.js";
 import { errorPageHtml } from "./errorPage.js";
 import { singleInstanceDecision } from "./singleInstance.js";
@@ -225,6 +225,8 @@ async function continueStartup() {
   } catch (err) {
     if (err instanceof SidecarStartError) {
       await showSidecarError(err.state, "the sidecar did not start");
+    } else if (err instanceof BridgeFlagError) {
+      await showSidecarError("crashed", err.message);
     } else if (!process.env.ZB_BRIDGE_BIN && !testHooks(process.env, app.isPackaged).bridgeBin) {
       await showSidecarError("agent-not-found", "the sidecar binaries are not configured");
     } else {
@@ -244,6 +246,9 @@ ipcMain.handle(IPC_CHANNELS.LAUNCH, async (evt, payload) => {
     }
     if (e instanceof SidecarStartError) {
       return showSidecarError(e.state, "the sidecar did not start");
+    }
+    if (e instanceof BridgeFlagError) {
+      return showSidecarError("crashed", e.message);
     }
     return rendererLaunchView({ ok: false, state: "crashed", error: "launch failed" });
   }

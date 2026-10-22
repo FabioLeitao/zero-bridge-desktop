@@ -3,27 +3,27 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { mkdir, rm, writeFile, chmod } from "node:fs/promises";
 import { EventEmitter } from "node:events";
 import { SidecarController, SidecarSpawn } from "../src/sidecar.js";
 
 describe("SidecarController", async () => {
   it("creates a token file with 0600 and no secrets in argv", async () => {
-    const ctrl = new SidecarController();
-    const fakeBridge = process.execPath;
-    const fakeAgent = process.execPath;
+    const child = new FakeChild();
+    const seen = { args: [] as string[], env: null as NodeJS.ProcessEnv | null };
+    const ctrl = controllerFor(child, seen);
     const tokenDir = join(tmpdir(), "zb-test-" + randomUUID());
     const handle = await ctrl.launch({
-      bridgeBin: fakeBridge,
-      agentBin: fakeAgent,
+      bridgeBin: process.execPath,
+      agentBin: process.execPath,
       port: 0,
       tokenDir,
       healthTimeoutMs: 0,
     });
-    // Token path exists.
     assert.equal(typeof handle.tokenPath, "string");
-    // Token is not in argv stringified.
     const token = handle.token;
     assert.ok(token.length >= 32);
+    assert.equal(seen.args.join(" ").includes(token), false);
     await ctrl.kill();
   });
 });
@@ -109,6 +109,41 @@ describe("SidecarController branches", () => {
     const profileAt = seen.args.indexOf("--profile");
     assert.equal(seen.args[profileAt + 1], "generic");
     await ctrl.kill();
+  });
+
+  it("passes --exit-with-parent on linux", async () => {
+    if (process.platform !== "linux") return;
+    const child = new FakeChild();
+    const { ctrl, seen } = await launchFake(child);
+    assert.ok(seen.args.includes("--exit-with-parent"), `argv ${seen.args.join(" ")}`);
+    await ctrl.kill();
+  });
+
+  it("refuses a bridge binary that lacks --exit-with-parent", async () => {
+    if (process.platform !== "linux") return;
+    const dir = join(tmpdir(), "zb-noflag-" + randomUUID());
+    const bin = join(dir, "bridge");
+    await mkdir(dir, { recursive: true });
+    await writeFile(bin, "#!/bin/sh\nexit 0\n");
+    await chmod(bin, 0o755);
+    const ctrl = new SidecarController();
+    try {
+      await assert.rejects(
+        () =>
+          ctrl.launch({
+            bridgeBin: bin,
+            agentBin: process.execPath,
+            port: 9,
+            tokenDir: join(tmpdir(), "zb-fake-" + randomUUID()),
+            killGraceMs: 0,
+            healthTimeoutMs: 0,
+          }),
+        /does not support --exit-with-parent/,
+      );
+    } finally {
+      await ctrl.kill();
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it("picks an ephemeral port when port is 0", async () => {

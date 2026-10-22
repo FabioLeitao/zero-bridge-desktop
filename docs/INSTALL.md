@@ -100,7 +100,7 @@ npm run build
 npm run test:e2e
 ```
 
-On npm 11 and npm 12 the override still runs only `electron@41.10.6`. The other packages with install scripts are `false` in `allowScripts`. Node 22.23.3 ships npm 10.9.9, which ignores that field and runs every install script. CI installs npm 12.2.0 and then uses this same command (`.github/workflows/check.yml` and `.github/workflows/package.yml`).
+On npm 11 and npm 12 the override still runs only `electron@44.9.3`. The other packages with install scripts are `false` in `allowScripts`. Node 22.23.3 ships npm 10.9.9, which ignores that field and runs every install script. CI installs npm 12.2.0 and then uses this same command (`.github/workflows/check.yml` and `.github/workflows/package.yml`).
 
 The suite builds `cmd/zero-bridge` and `cmd/acpfake` from the Go module. Set `ZB_BRIDGE_SRC` to that module directory, or check the bridge out at `./zero-bridge` or `../zero-bridge`.
 
